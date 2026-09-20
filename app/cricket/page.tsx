@@ -34,6 +34,8 @@ function CricketLogic() {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [dartsThrown, setDartsThrown] = useState(0);
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
+  const [currentThrows, setCurrentThrows] = useState<string[]>([]); // Restauré : Historique des lancers
+
   const winner = players.find(p => {
     const allClosed = TARGETS.every(t => p.marks[t] === 3);
     const highestScore = players.every(other => other.id === p.id || p.score >= other.score);
@@ -44,13 +46,14 @@ function CricketLogic() {
     const initialMarks = TARGETS.reduce((acc, target) => ({ ...acc, [target]: 0 }), {});
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
-      name: `Joueur ${i + 1}`,
+      name: customNames[i] || `Joueur ${i + 1}`,
       score: 0,
       marks: { ...initialMarks },
     })));
     setCurrentPlayerIndex(0);
     setDartsThrown(0);
     setMultiplier(1);
+    setCurrentThrows([]);
   };
 
   const handleHit = (target: number) => {
@@ -62,6 +65,10 @@ function CricketLogic() {
         setMultiplier(1);
         return;
       }
+
+      // Enregistrement visuel du lancer (ex: T20, D15, 25)
+      const hitStr = multiplier === 3 ? `T${target}` : multiplier === 2 ? `D${target}` : `${target}`;
+      setCurrentThrows((prev) => [...prev, hitStr]);
 
       setPlayers((prev) => {
         const newPlayers = JSON.parse(JSON.stringify(prev));
@@ -85,19 +92,21 @@ function CricketLogic() {
         }
         return newPlayers;
       });
+    } else {
+      // Cas du Miss (0)
+      setCurrentThrows((prev) => [...prev, '0']);
     }
 
     setMultiplier(1); 
     
-    // Si on a gagné, l'useEffect va s'en rendre compte
     const newCount = dartsThrown + 1;
     setDartsThrown(newCount);
 
     if (newCount >= 3) {
       setTimeout(() => {
-        // On revérifie qu'il n'y a pas de vainqueur avant de passer au suivant
         setCurrentPlayerIndex((i) => (i + 1) % players.length);
         setDartsThrown(0);
+        setCurrentThrows([]);
       }, 1200);
     }
   };
@@ -113,54 +122,72 @@ function CricketLogic() {
     return "";
   };
 
-  // =========================================
-  // ÉCRAN DE VICTOIRE
-  // =========================================
-  if (winner) {
-    const winTheme = PLAYER_COLORS[winner.id % PLAYER_COLORS.length];
-    return (
-      <div className="w-full max-w-md flex flex-col items-center justify-center h-full min-h-[80vh] px-2">
-        <div className={`w-full ${winTheme.winBg} border-2 ${winTheme.border} rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden`}>
-          <div className="absolute top-0 left-0 w-full h-full bg-white/5 animate-pulse" />
-          <h1 className="text-5xl font-black text-white mb-2 relative z-10 drop-shadow-md">VICTOIRE !</h1>
-          <h2 className={`text-3xl font-bold mb-4 ${winTheme.text} relative z-10`}>{winner.name}</h2>
-          <div className="text-xl font-bold text-gray-300 mb-8 relative z-10">Avec {winner.score} pts</div>
-          
-          <div className="flex flex-col gap-4 relative z-10">
-            <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${winTheme.fill}`}>
-              Rejouer
-            </button>
-            <Link href="/" className="w-full py-4 rounded-xl text-xl font-bold bg-gray-800 text-gray-300 shadow-lg active:scale-95 transition-transform border border-gray-700 block text-center">
-              Menu Principal
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const currentPlayer = players[currentPlayerIndex];
   const currentTheme = PLAYER_COLORS[currentPlayerIndex % PLAYER_COLORS.length];
 
   return (
-    <div className="w-full max-w-md flex flex-col items-center h-screen pt-4 pb-6 overflow-hidden">
+    <div className="w-full max-w-md flex flex-col items-center relative pb-6 overflow-hidden">
+      
+      {/* =========================================
+          OVERLAY DE VICTOIRE EN POP-UP
+          ========================================= */}
+      {winner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].headBg} border-2 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].border} rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300`}>
+            <div className="absolute top-0 left-0 w-full h-full bg-white/5 animate-pulse pointer-events-none" />
+            <h1 className="text-5xl font-black text-white mb-2 relative z-10 drop-shadow-md">VICTOIRE !</h1>
+            <h2 className={`text-4xl font-bold mb-4 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].text} relative z-10 uppercase tracking-wider`}>{winner.name}</h2>
+            <div className="text-2xl font-bold text-gray-200 mb-8 relative z-10">Avec {winner.score} pts</div>
+            
+            <div className="flex flex-col gap-4 relative z-10">
+              <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>
+                Rejouer
+              </button>
+              <Link href="/" className="w-full py-4 rounded-xl text-xl font-bold bg-gray-800 text-gray-300 shadow-lg active:scale-95 transition-transform border border-gray-700 block text-center">
+                Menu Principal
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EN-TÊTE ET BOUTON QUITTER */}
       <div className="w-full flex justify-between items-center mb-2 px-2 shrink-0">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <h1 className="text-xl font-bold text-white tracking-widest uppercase">Cricket</h1>
       </div>
 
-      <div className="w-full flex flex-col items-center mb-4 shrink-0 transition-colors duration-300">
-        <h2 className="text-xl font-bold text-white mb-1">
-          Tour de <span className={currentTheme.text}>{currentPlayer.name}</span>
+      {/* =========================================
+          NOUVEAU : CARTE DU JOUEUR ACTIF EN GROS
+          ========================================= */}
+      <div className={`w-full rounded-3xl p-5 mb-4 shadow-2xl relative overflow-hidden border-2 transition-all duration-500 ${currentTheme.headBg} ${currentTheme.border}`}>
+        {/* Petit effet de brillance de fond */}
+        <div className="absolute top-0 left-0 w-full h-full bg-white/5 pointer-events-none" />
+        
+        <div className="text-xs font-bold text-gray-300 uppercase tracking-widest mb-1 text-center relative z-10">
+          Au tour de
+        </div>
+        <h2 className={`text-4xl font-black text-center uppercase tracking-widest mb-4 transition-colors duration-300 ${currentTheme.text} drop-shadow-md relative z-10`}>
+          {currentPlayer.name}
         </h2>
-        <div className="flex justify-center gap-3">
-          {[1, 2, 3].map((dart) => (
-            <div key={dart} className={`w-3 h-3 rounded-full transition-colors duration-300 ${dart <= dartsThrown ? currentTheme.fill : 'bg-gray-600'}`} />
-          ))}
+        
+        {/* Fléchettes et Historique */}
+        <div className="flex justify-center gap-4 w-full mx-auto relative z-10">
+           {[0, 1, 2].map((idx) => (
+             <div key={idx} className="flex-1 flex flex-col items-center gap-2">
+               {/* Rond de fléchette */}
+               <div className={`w-4 h-4 rounded-full shadow-md transition-colors duration-300 ${idx < dartsThrown ? currentTheme.fill : 'bg-gray-800 border-2 border-gray-600'}`} />
+               {/* Score cliqué */}
+               <div className="w-full text-center text-sm font-bold text-gray-200 bg-gray-900/60 rounded-lg py-1.5 h-8 flex items-center justify-center border border-gray-700/50 shadow-inner">
+                 {currentThrows[idx] || '-'}
+               </div>
+             </div>
+           ))}
         </div>
       </div>
 
-      <div className="w-full bg-gray-800 rounded-2xl p-3 mb-4 shadow-lg overflow-y-auto shrink border border-gray-700">
+      {/* TABLEAU DES SCORES */}
+      <div className="w-full bg-gray-800 rounded-2xl p-2 mb-4 shadow-lg overflow-y-auto shrink border border-gray-700">
         <table className="w-full text-center table-fixed">
           <thead>
             <tr>
@@ -197,17 +224,22 @@ function CricketLogic() {
         </table>
       </div>
 
-      <div className="w-full mt-auto shrink-0 px-1">
-        <div className="flex gap-2 w-full mb-2">
-          <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105' : 'bg-gray-800 text-gray-400'}`}>Double</button>
-          <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105' : 'bg-gray-800 text-gray-400'}`}>Triple</button>
+      {/* CLAVIER DE JEU */}
+      <div className="w-full mb-2 px-1">
+        <div className="flex gap-2 w-full mb-3">
+          <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105 shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
+          <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105 shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
         </div>
         
         <div className="grid grid-cols-4 gap-2 w-full">
            {TARGETS.map((target) => (
-             <button key={target} onClick={() => handleHit(target)} className="bg-gray-700 py-4 rounded-xl text-xl font-bold active:bg-gray-600 active:scale-95 text-white shadow-sm">{target === 25 ? "25 (B)" : target}</button>
+             <button key={target} onClick={() => handleHit(target)} className="bg-gray-700 py-4 rounded-xl text-xl font-bold active:bg-gray-600 active:scale-95 text-white shadow-sm border border-gray-600/50">
+               {target === 25 ? "25 (B)" : target}
+             </button>
            ))}
-           <button onClick={() => handleHit(0)} className="bg-gray-900 border border-gray-600 py-4 rounded-xl text-lg font-bold active:bg-gray-800 text-gray-400 shadow-sm">Miss (0)</button>
+           <button onClick={() => handleHit(0)} className="bg-gray-900 border border-gray-600 py-4 rounded-xl text-lg font-bold active:bg-gray-800 text-gray-400 shadow-sm">
+             Miss (0)
+           </button>
         </div>
       </div>
     </div>
@@ -216,8 +248,11 @@ function CricketLogic() {
 
 export default function CricketGame() {
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-2 select-none">
-      <Suspense fallback={<div className="text-xl font-bold text-green-400 animate-pulse">Chargement du Cricket...</div>}>
+    <main 
+      className="flex flex-col items-center justify-center min-h-screen text-white p-2 select-none bg-cover bg-center bg-fixed"
+      style={{ backgroundImage: "url('/fond.jpeg')" }}
+    >
+      <Suspense fallback={<div className="text-xl font-bold text-green-900 animate-pulse">Chargement du Cricket...</div>}>
         <CricketLogic />
       </Suspense>
     </main>

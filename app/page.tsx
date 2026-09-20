@@ -2,16 +2,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-// La liste de tes joueurs réguliers (tu peux la modifier comme tu veux !)
-const PREDEFINED_NAMES = ["Mathis", "Rémi", "Papa", "Maman", "Invité"];
+const PREDEFINED_NAMES = ["Mathis", "Rémi", "Maman", "Papa", "Invité"];
 
 export default function Home() {
   const router = useRouter();
-  const [gameMode, setGameMode] = useState<'x01' | 'cricket'>('x01');
+  const [gameMode, setGameMode] = useState<'x01' | 'cricket' | 'century'>('x01');
   const [numPlayers, setNumPlayers] = useState<number>(2);
-  const [startingScore, setStartingScore] = useState<number>(301);
-  
-  // État pour stocker les noms des 4 joueurs possibles
+  const [startingScore, setStartingScore] = useState<number>(501);
   const [playerNames, setPlayerNames] = useState<string[]>(['Joueur 1', 'Joueur 2', 'Joueur 3', 'Joueur 4']);
 
   const handleNameChange = (index: number, newName: string) => {
@@ -21,7 +18,6 @@ export default function Home() {
   };
 
   const startGame = () => {
-    // On récupère uniquement les noms des joueurs actifs et on les encode pour l'URL
     const activeNames = playerNames
       .slice(0, numPlayers)
       .map((n, i) => encodeURIComponent(n.trim() || `Joueur ${i + 1}`))
@@ -29,14 +25,32 @@ export default function Home() {
 
     if (gameMode === 'x01') {
       router.push(`/x01?players=${numPlayers}&score=${startingScore}&names=${activeNames}`);
-    } else {
+    } else if (gameMode === 'cricket') {
       router.push(`/cricket?players=${numPlayers}&names=${activeNames}`);
+    } else {
+      router.push(`/century?players=${numPlayers}&names=${activeNames}`);
     }
   };
 
+  const getTitleColor = () => {
+    if (gameMode === 'x01') return 'text-blue-500';
+    if (gameMode === 'cricket') return 'text-green-500';
+    return 'text-purple-500';
+  };
+
+  const getPlayerBtnColor = (num: number) => {
+    if (numPlayers !== num) return 'bg-gray-700 text-gray-400';
+    if (gameMode === 'x01') return 'bg-blue-600 shadow-lg shadow-blue-900/50';
+    if (gameMode === 'cricket') return 'bg-green-600 shadow-lg shadow-green-900/50';
+    return 'bg-purple-600 shadow-lg shadow-purple-900/50';
+  };
+
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4 sm:p-6 select-none overflow-y-auto">
-      <h1 className={`text-5xl font-black mb-8 tracking-tight transition-colors duration-500 ${gameMode === 'x01' ? 'text-blue-500' : 'text-green-500'}`}>
+    <main 
+      className="flex flex-col items-center justify-center min-h-screen text-white p-4 sm:p-6 select-none overflow-y-auto bg-cover bg-center bg-fixed"
+      style={{ backgroundImage: "url('/fond.jpeg')" }}
+    >
+      <h1 className={`text-5xl font-black mb-8 tracking-tight transition-colors duration-500 ${getTitleColor()}`}>
         Fléchettes Score
       </h1>
       
@@ -45,18 +59,24 @@ export default function Home() {
         {/* Choix du mode de jeu */}
         <div className="mb-8">
           <h2 className="text-xl font-bold mb-4 text-gray-300 text-center">Mode de jeu</h2>
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-3 justify-center flex-wrap">
             <button
               onClick={() => setGameMode('x01')}
-              className={`px-8 py-3 rounded-2xl text-xl font-bold transition-all ${gameMode === 'x01' ? 'bg-blue-600 text-white scale-105 shadow-lg shadow-blue-900/50' : 'bg-gray-700 text-gray-400'}`}
+              className={`px-5 py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'x01' ? 'bg-blue-600 text-white scale-105 shadow-lg shadow-blue-900/50' : 'bg-gray-700 text-gray-400'}`}
             >
               x01
             </button>
             <button
               onClick={() => setGameMode('cricket')}
-              className={`px-8 py-3 rounded-2xl text-xl font-bold transition-all ${gameMode === 'cricket' ? 'bg-green-600 text-white scale-105 shadow-lg shadow-green-900/50' : 'bg-gray-700 text-gray-400'}`}
+              className={`px-5 py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'cricket' ? 'bg-green-600 text-white scale-105 shadow-lg shadow-green-900/50' : 'bg-gray-700 text-gray-400'}`}
             >
               Cricket
+            </button>
+            <button
+              onClick={() => setGameMode('century')}
+              className={`px-5 py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'century' ? 'bg-purple-600 text-white scale-105 shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400'}`}
+            >
+              Century
             </button>
           </div>
         </div>
@@ -69,7 +89,7 @@ export default function Home() {
               <button
                 key={num}
                 onClick={() => setNumPlayers(num)}
-                className={`w-14 h-14 rounded-full text-xl font-bold transition-all ${numPlayers === num ? (gameMode === 'x01' ? 'bg-blue-600 shadow-lg shadow-blue-900/50' : 'bg-green-600 shadow-lg shadow-green-900/50') : 'bg-gray-700 text-gray-400'}`}
+                className={`w-14 h-14 rounded-full text-xl font-bold transition-all ${getPlayerBtnColor(num)}`}
               >
                 {num}
               </button>
@@ -89,7 +109,7 @@ export default function Home() {
                   onChange={(e) => handleNameChange(i, e.target.value)}
                   placeholder={`Joueur ${i + 1}`}
                   maxLength={10}
-                  className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'x01' ? 'focus:border-blue-500 border-gray-700' : 'focus:border-green-500 border-gray-700'}`}
+                  className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none border-gray-700 ${gameMode === 'x01' ? 'focus:border-blue-500' : gameMode === 'cricket' ? 'focus:border-green-500' : 'focus:border-purple-500'}`}
                 />
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                   {PREDEFINED_NAMES.map(name => (
@@ -107,7 +127,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Options spécifiques au x01 */}
         {gameMode === 'x01' && (
           <div className="mb-8">
             <h2 className="text-xl font-bold mb-4 text-gray-300 text-center">Score de départ</h2>
@@ -128,7 +147,11 @@ export default function Home() {
         {/* Bouton Jouer */}
         <button 
           onClick={startGame}
-          className={`w-full p-5 rounded-2xl text-2xl font-black transition-all active:scale-95 shadow-xl ${gameMode === 'x01' ? 'bg-blue-500 hover:bg-blue-400 shadow-blue-900/50' : 'bg-green-500 hover:bg-green-400 shadow-green-900/50'}`}
+          className={`w-full p-5 rounded-2xl text-2xl font-black transition-all active:scale-95 shadow-xl ${
+            gameMode === 'x01' ? 'bg-blue-500 hover:bg-blue-400 shadow-blue-900/50' : 
+            gameMode === 'cricket' ? 'bg-green-500 hover:bg-green-400 shadow-green-900/50' : 
+            'bg-purple-500 hover:bg-purple-400 shadow-purple-900/50'
+          }`}
         >
           JOUER
         </button>
