@@ -1,69 +1,88 @@
-import Image from "next/image";
+"use client";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const router = useRouter();
+  const [gameMode, setGameMode] = useState<'x01' | 'cricket'>('x01');
+  const [numPlayers, setNumPlayers] = useState<number>(2);
+  const [startingScore, setStartingScore] = useState<number>(501);
+
+  const startGame = () => {
+    if (gameMode === 'x01') {
+      router.push(`/x01?players=${numPlayers}&score=${startingScore}`);
+    } else {
+      router.push(`/cricket?players=${numPlayers}`);
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-6 select-none">
+      <h1 className="text-5xl font-black mb-12 text-blue-500 tracking-tight">Darts Score</h1>
+      
+      <div className="w-full max-w-md bg-gray-800 p-8 rounded-3xl shadow-xl">
+        
+        {/* Choix du mode de jeu */}
+        <div className="mb-8">
+          <h2 className="text-xl font-bold mb-4 text-gray-300 text-center">Mode de jeu</h2>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => setGameMode('x01')}
+              className={`px-8 py-3 rounded-2xl text-xl font-bold transition-all ${gameMode === 'x01' ? 'bg-blue-600 text-white scale-105' : 'bg-gray-700 text-gray-400'}`}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              x01
+            </button>
+            <button
+              onClick={() => setGameMode('cricket')}
+              className={`px-8 py-3 rounded-2xl text-xl font-bold transition-all ${gameMode === 'cricket' ? 'bg-green-600 text-white scale-105' : 'bg-gray-700 text-gray-400'}`}
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              Cricket
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Choix du nombre de joueurs */}
+        <div className="mb-8">
+          <h2 className="text-xl font-bold mb-4 text-gray-300 text-center">Joueurs</h2>
+          <div className="flex gap-3 justify-center">
+            {[1, 2, 3, 4].map((num) => (
+              <button
+                key={num}
+                onClick={() => setNumPlayers(num)}
+                className={`w-14 h-14 rounded-full text-xl font-bold transition-all ${numPlayers === num ? (gameMode === 'x01' ? 'bg-blue-600' : 'bg-green-600') : 'bg-gray-700 text-gray-400'}`}
+              >
+                {num}
+              </button>
+            ))}
+          </div>
         </div>
-      </main>
-    </div>
+
+        {/* Options spécifiques au x01 */}
+        {gameMode === 'x01' && (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold mb-4 text-gray-300 text-center">Score de départ</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {[301, 501, 701, 1001].map(score => (
+                <button
+                  key={score}
+                  onClick={() => setStartingScore(score)}
+                  className={`py-3 rounded-xl font-bold transition-all ${startingScore === score ? 'bg-blue-600' : 'bg-gray-700 text-gray-400'}`}
+                >
+                  {score}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bouton Jouer */}
+        <button 
+          onClick={startGame}
+          className={`w-full p-5 rounded-2xl text-2xl font-black transition-all active:scale-95 ${gameMode === 'x01' ? 'bg-blue-500 hover:bg-blue-400' : 'bg-green-500 hover:bg-green-400'}`}
+        >
+          JOUER
+        </button>
+      </div>
+    </main>
   );
 }
