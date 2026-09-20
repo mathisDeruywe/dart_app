@@ -18,11 +18,14 @@ function CricketLogic() {
   const searchParams = useSearchParams();
   const numPlayers = parseInt(searchParams.get('players') || '2');
 
+  const namesParam = searchParams.get('names');
+  const customNames = namesParam ? namesParam.split(',').map(n => decodeURIComponent(n)) : [];
+
   const [players, setPlayers] = useState<Player[]>(() => {
     const initialMarks = TARGETS.reduce((acc, target) => ({ ...acc, [target]: 0 }), {});
     return Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
-      name: `Joueur ${i + 1}`,
+      name: customNames[i] || `Joueur ${i + 1}`,
       score: 0,
       marks: { ...initialMarks },
     }));

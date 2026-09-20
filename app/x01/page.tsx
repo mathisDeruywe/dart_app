@@ -17,11 +17,14 @@ function X01Logic() {
   const searchParams = useSearchParams();
   const numPlayers = parseInt(searchParams.get('players') || '2');
   const startingScore = parseInt(searchParams.get('score') || '501');
+  
+  const namesParam = searchParams.get('names');
+  const customNames = namesParam ? namesParam.split(',').map(n => decodeURIComponent(n)) : [];
 
   const [players, setPlayers] = useState<Player[]>(() => 
     Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
-      name: `Joueur ${i + 1}`,
+      name: customNames[i] || `Joueur ${i + 1}`,
       score: startingScore,
       turnBaseScore: startingScore,
     }))
@@ -31,24 +34,27 @@ function X01Logic() {
   const [dartsThrown, setDartsThrown] = useState(0);
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
   
+  // NOUVEAU : État pour garder en mémoire les lancers du tour actuel
+  const [currentThrows, setCurrentThrows] = useState<string[]>([]);
+  
   const [winnerId, setWinnerId] = useState<number | null>(null);
   const winner = winnerId !== null ? players[winnerId] : null;
 
   const resetGame = () => {
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
-      name: `Joueur ${i + 1}`,
+      name: customNames[i] || `Joueur ${i + 1}`,
       score: startingScore,
       turnBaseScore: startingScore,
     })));
     setCurrentPlayerIndex(0);
     setDartsThrown(0);
     setMultiplier(1);
+    setCurrentThrows([]); // On vide l'historique
     setWinnerId(null);
   };
 
   const handleScore = (val: number) => {
-    // Si la partie est finie ou le tour est terminé, on bloque
     if (winnerId !== null || dartsThrown >= 3) return;
 
     if (val === 25 && multiplier === 3) {
@@ -57,49 +63,40 @@ function X01Logic() {
       return;
     }
 
+    // NOUVEAU : Enregistrement de la touche en texte (ex: "T20", "D15", "0")
+    const hitStr = val === 0 ? '0' : (multiplier === 3 ? `T${val}` : multiplier === 2 ? `D${val}` : `${val}`);
+    setCurrentThrows((prev) => [...prev, hitStr]);
+
     const points = val * multiplier; 
-    
-    // On isole les calculs en dehors du setState pour éviter les bugs de React Strict Mode
-    const currentPlayer = players[currentPlayerIndex];
-    const remaining = currentPlayer.score - points;
-    
-    let newScore = currentPlayer.score;
     let isBust = false;
     let didWin = false;
 
-    if (remaining > 0) {
-      // Cas normal
-      newScore = remaining;
-    } else if (remaining === 0) {
-      // VICTOIRE !
-      newScore = 0;
-      didWin = true;
-    } else {
-      // BUST (Score dépassé)
-      alert(`Bust ! Score dépassé. Retour à ${currentPlayer.turnBaseScore}.`);
-      newScore = currentPlayer.turnBaseScore;
-      isBust = true;
-    }
-
-    // Mise à jour pure de l'état des joueurs
     setPlayers((prev) => {
       const newPlayers = JSON.parse(JSON.stringify(prev));
-      newPlayers[currentPlayerIndex].score = newScore;
+      const p = newPlayers[currentPlayerIndex];
+      const remaining = p.score - points;
+
+      if (remaining > 0) {
+        p.score -= points;
+      } else if (remaining === 0) {
+        p.score = 0;
+        didWin = true;
+      } else {
+        alert(`Bust ! Score dépassé. Retour à ${p.turnBaseScore}.`);
+        p.score = p.turnBaseScore; 
+        isBust = true;
+      }
       return newPlayers;
     });
 
     setMultiplier(1);
 
-    // ===================================
-    // DÉCLENCHEMENT DE LA VICTOIRE
-    // ===================================
     if (didWin) {
       setDartsThrown(dartsThrown + 1); 
-      setWinnerId(currentPlayerIndex); // Affiche instantanément l'overlay de victoire
-      return; // On arrête l'exécution ici, on ne passe pas au joueur suivant
+      setWinnerId(currentPlayerIndex);
+      return;
     }
 
-    // Gestion du tour suivant si on n'a pas gagné
     const newCount = isBust ? 3 : dartsThrown + 1;
     setDartsThrown(newCount);
 
@@ -111,6 +108,7 @@ function X01Logic() {
         });
         setCurrentPlayerIndex((i) => (i + 1) % players.length);
         setDartsThrown(0);
+        setCurrentThrows([]); // On vide l'historique pour le joueur suivant
       }, 1200);
     }
   };
@@ -125,18 +123,12 @@ function X01Logic() {
   return (
     <div className="w-full max-w-md flex flex-col items-center relative">
       
-      {/* =========================================
-          OVERLAY DE VICTOIRE
-          ========================================= */}
       {winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className={`w-full max-w-md ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].headBg} border-2 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].border} rounded-3xl p-6 text-center shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300`}>
             <div className="absolute top-0 left-0 w-full h-full bg-white/5 animate-pulse pointer-events-none" />
-            
             <h1 className="text-4xl font-black text-white mb-2 relative z-10 drop-shadow-md">VICTOIRE !</h1>
-            <h2 className={`text-3xl font-bold mb-6 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].text} relative z-10`}>
-              {winner.name}
-            </h2>
+            <h2 className={`text-3xl font-bold mb-6 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].text} relative z-10`}>{winner.name}</h2>
             
             <div className="bg-gray-900/60 rounded-xl p-4 mb-6 relative z-10 border border-gray-700/50">
               <h3 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-widest">Scores Finaux</h3>
@@ -157,32 +149,33 @@ function X01Logic() {
             </div>
             
             <div className="flex flex-col gap-3 relative z-10">
-              <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>
-                Rejouer
-              </button>
-              <Link href="/" className="w-full py-4 rounded-xl text-xl font-bold bg-gray-800 text-gray-300 shadow-lg active:scale-95 transition-transform border border-gray-700 block text-center">
-                Menu Principal
-              </Link>
+              <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>Rejouer</button>
+              <Link href="/" className="w-full py-4 rounded-xl text-xl font-bold bg-gray-800 text-gray-300 shadow-lg active:scale-95 transition-transform border border-gray-700 block text-center">Menu Principal</Link>
             </div>
           </div>
         </div>
       )}
 
-      {/* =========================================
-          JEU EN ARRIÈRE-PLAN
-          ========================================= */}
       <div className="w-full flex justify-between items-center mb-4 px-1">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <h1 className="text-xl font-bold text-white tracking-widest uppercase">x01 - {startingScore}</h1>
       </div>
 
       <div className={`w-full bg-gray-800 rounded-3xl p-5 mb-3 text-center shadow-lg relative border-2 transition-colors duration-300 ${currentTheme.border}`}>
-         <h2 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${currentTheme.text}`}>{currentPlayer.name}</h2>
-         <div className="flex justify-center gap-3 mb-2">
-           {[1, 2, 3].map((dart) => (
-             <div key={dart} className={`w-3 h-3 rounded-full transition-colors duration-300 ${dart <= dartsThrown ? currentTheme.fill : 'bg-gray-600'}`} />
-           ))}
+         <h2 className={`text-2xl font-bold mb-4 transition-colors duration-300 ${currentTheme.text}`}>{currentPlayer.name}</h2>
+         
+         {/* NOUVEAU : Indicateurs Fléchettes + Score cliqué */}
+         <div className="flex justify-center gap-4 w-3/4 mx-auto mb-4">
+             {[0, 1, 2].map((idx) => (
+               <div key={idx} className="flex-1 flex flex-col items-center gap-2">
+                 <div className={`w-3 h-3 rounded-full transition-colors duration-300 ${idx < dartsThrown ? currentTheme.fill : 'bg-gray-600'}`} />
+                 <div className="w-full text-center text-sm font-bold text-gray-300 bg-gray-900/40 rounded-md py-1 h-7 flex items-center justify-center border border-gray-700/30 shadow-inner">
+                   {currentThrows[idx] || '-'}
+                 </div>
+               </div>
+             ))}
          </div>
+
          <div className="text-7xl font-black mb-1 tracking-tighter text-white">{currentPlayer.score}</div>
       </div>
 
