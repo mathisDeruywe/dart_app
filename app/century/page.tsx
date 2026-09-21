@@ -137,7 +137,7 @@ function CenturyLogic() {
                   // Affichage dynamique et précis de la situation du joueur
                   let diffText = "";
                   if (p.score === 100) diffText = "Pile 100 !";
-                  else if (p.score < 100) diffText = `Reste : ${diff}`;
+                  else if (p.score < 100) diffText = `Il te reste : ${diff}`;
                   else diffText = `Dépassé de : ${diff}`;
                   
                   return (

@@ -6,10 +6,10 @@ import Link from 'next/link';
 const TARGETS = [20, 19, 18, 17, 16, 15, 25];
 
 const PLAYER_COLORS = [
-  { text: 'text-blue-400', fill: 'bg-blue-500', btn: 'bg-blue-600 active:bg-blue-500', border: 'border-blue-500/30', headBg: 'bg-blue-900/40' },
-  { text: 'text-green-400', fill: 'bg-green-500', btn: 'bg-green-600 active:bg-green-500', border: 'border-green-500/30', headBg: 'bg-green-900/40' },
-  { text: 'text-yellow-400', fill: 'bg-yellow-500', btn: 'bg-yellow-600 active:bg-yellow-500', border: 'border-yellow-500/30', headBg: 'bg-yellow-900/40' },
-  { text: 'text-red-400', fill: 'bg-red-500', btn: 'bg-red-600 active:bg-red-500', border: 'border-red-500/30', headBg: 'bg-red-900/40' },
+  { text: 'text-blue-400', fill: 'bg-blue-500', btn: 'bg-blue-600 active:bg-blue-500', headBg: 'bg-blue-900/60', cellBg: 'bg-blue-900/20', border: 'border-blue-500/30', winBg: 'bg-blue-900/40' },
+  { text: 'text-green-400', fill: 'bg-green-500', btn: 'bg-green-600 active:bg-green-500', headBg: 'bg-green-900/60', cellBg: 'bg-green-900/20', border: 'border-green-500/30', winBg: 'bg-green-900/40' },
+  { text: 'text-yellow-400', fill: 'bg-yellow-500', btn: 'bg-yellow-600 active:bg-yellow-500', headBg: 'bg-yellow-900/60', cellBg: 'bg-yellow-900/20', border: 'border-yellow-500/30', winBg: 'bg-yellow-900/40' },
+  { text: 'text-red-400', fill: 'bg-red-500', btn: 'bg-red-600 active:bg-red-500', headBg: 'bg-red-900/60', cellBg: 'bg-red-900/20', border: 'border-red-500/30', winBg: 'bg-red-900/40' },
 ];
 
 type Player = { id: number; name: string; score: number };
@@ -28,25 +28,35 @@ function ScramLogic() {
     }))
   );
 
-  // Scram se joue en manches ("innings"). Le nombre de manches = nombre de joueurs.
   const [inning, setInning] = useState(0); 
   const [turnInInning, setTurnInInning] = useState(0); 
   const [dartsThrown, setDartsThrown] = useState(0);
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
-  // Tableau commun des fermetures (seul le bloqueur peut le remplir)
   const [boardMarks, setBoardMarks] = useState<Record<number, number>>({ 20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 25: 0 });
   const [isGameOver, setIsGameOver] = useState(false);
 
-  // Le joueur "Bloqueur" change à chaque manche
+  // NOUVEAU : États pour le système audio
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [turnStartScore, setTurnStartScore] = useState(0);
+
   const stopperId = inning;
-  // Le joueur actif tourne à l'intérieur de la manche (le bloqueur commence toujours)
   const activePlayerIndex = (inning + turnInInning) % numPlayers;
   const isStopper = activePlayerIndex === stopperId;
 
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
   const winner = isGameOver ? sortedPlayers[0] : null;
+
+  // NOUVEAU : Fonction d'annonce audio
+  const announce = (text: string) => {
+    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'fr-FR'; 
+    msg.rate = 1.1; 
+    window.speechSynthesis.speak(msg);
+  };
 
   const resetGame = () => {
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
@@ -61,6 +71,7 @@ function ScramLogic() {
     setCurrentThrows([]);
     setBoardMarks({ 20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 25: 0 });
     setIsGameOver(false);
+    setTurnStartScore(0);
   };
 
   const handleScore = (val: number) => {
@@ -72,11 +83,18 @@ function ScramLogic() {
       return;
     }
 
+    // Capture le score du joueur actif au début de son tour
+    const actualStartScore = dartsThrown === 0 ? players[activePlayerIndex].score : turnStartScore;
+    if (dartsThrown === 0) setTurnStartScore(actualStartScore);
+
     const hitStr = val === 0 ? '0' : (multiplier === 3 ? `T${val}` : multiplier === 2 ? `D${val}` : `${val}`);
     setCurrentThrows((prev) => [...prev, hitStr]);
 
     let inningEnded = false;
+    let announcement = "";
+    
     const localBoardMarks = { ...boardMarks };
+    const newPlayers = JSON.parse(JSON.stringify(players));
 
     if (val !== 0) {
       if (isStopper) {
@@ -85,7 +103,12 @@ function ScramLogic() {
         if (currentMarks < 3) {
           const marksToAdd = Math.min(3 - currentMarks, multiplier);
           localBoardMarks[val] += marksToAdd;
-          setBoardMarks(localBoardMarks);
+          
+          // Vérification de la fermeture pour l'audio
+          if (localBoardMarks[val] === 3) {
+            const targetName = val === 25 ? "Bull" : val.toString();
+            announcement = `Fermeture du ${targetName}`;
+          }
           
           if (TARGETS.every(t => localBoardMarks[t] === 3)) {
             inningEnded = true;
@@ -94,21 +117,32 @@ function ScramLogic() {
       } else {
         // LES SCOREURS gagnent des points sur les cibles ouvertes
         if (localBoardMarks[val] < 3) {
-          setPlayers(prev => {
-            const newP = JSON.parse(JSON.stringify(prev));
-            newP[activePlayerIndex].score += val * multiplier;
-            return newP;
-          });
+          newPlayers[activePlayerIndex].score += val * multiplier;
         }
       }
     }
 
+    setBoardMarks(localBoardMarks);
+    setPlayers(newPlayers);
     setMultiplier(1);
+    
     const newCount = dartsThrown + 1;
     setDartsThrown(newCount);
 
+    const finalScore = newPlayers[activePlayerIndex].score;
+
     if (inningEnded) {
-      // Si le bloqueur a tout fermé, on arrête la manche tout de suite
+      // Si la manche est finie et que c'était la dernière
+      if (inning + 1 >= numPlayers) {
+        const sorted = [...newPlayers].sort((a: Player, b: Player) => b.score - a.score);
+        announce(`Fin du jeu ! Victoire de ${sorted[0].name} !`);
+      } else {
+        let endAnnounce = announcement;
+        if (endAnnounce) endAnnounce += ". ";
+        endAnnounce += "Fin de la manche !";
+        announce(endAnnounce);
+      }
+
       setTimeout(() => {
         if (inning + 1 >= numPlayers) {
           setIsGameOver(true);
@@ -120,12 +154,27 @@ function ScramLogic() {
           setBoardMarks({ 20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 25: 0 });
         }
       }, 1200);
+
     } else if (newCount >= 3) {
+      let endAnnouncement = announcement;
+      
+      // Si c'est un scoreur et qu'il a marqué, on annonce son score à la fin de ses 3 flèches
+      if (!isStopper && finalScore > actualStartScore) {
+        if (endAnnouncement) endAnnouncement += ". ";
+        endAnnouncement += `${finalScore} points`;
+      }
+      
+      if (endAnnouncement) announce(endAnnouncement);
+
       setTimeout(() => {
         setTurnInInning(t => t + 1);
         setDartsThrown(0);
         setCurrentThrows([]);
       }, 1200);
+      
+    } else {
+      // Annonce la fermeture de cible en direct pendant le tour du bloqueur
+      if (announcement) announce(announcement);
     }
   };
 
@@ -185,7 +234,7 @@ function ScramLogic() {
         </div>
       )}
 
-      {/* EN-TÊTE */}
+      {/* EN-TÊTE ET BOUTON SON */}
       <div className="w-full flex justify-between items-center mb-4 px-1">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <div className="flex flex-col items-center">
@@ -194,6 +243,13 @@ function ScramLogic() {
             Manche {inning + 1}/{numPlayers}
           </span>
         </div>
+        <button 
+          onClick={() => setVoiceEnabled(!voiceEnabled)} 
+          className="text-gray-300 px-3 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
+          title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
+        >
+          {voiceEnabled ? '🔊' : '🔇'}
+        </button>
       </div>
 
       {/* JOUEUR ACTIF */}

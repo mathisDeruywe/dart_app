@@ -16,7 +16,7 @@ const NUMBERS = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3
 function X01Logic() {
   const searchParams = useSearchParams();
   const numPlayers = parseInt(searchParams.get('players') || '2');
-  const startingScore = parseInt(searchParams.get('score') || '301');
+  const startingScore = parseInt(searchParams.get('score') || '501');
   
   const namesParam = searchParams.get('names');
   const customNames = namesParam ? namesParam.split(',').map(n => decodeURIComponent(n)) : [];
@@ -33,12 +33,22 @@ function X01Logic() {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [dartsThrown, setDartsThrown] = useState(0);
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
-  
-  // NOUVEAU : État pour garder en mémoire les lancers du tour actuel
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
   const [winnerId, setWinnerId] = useState<number | null>(null);
   const winner = winnerId !== null ? players[winnerId] : null;
+
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+
+  // Fonction pour dicter un texte
+  const announce = (text: string) => {
+    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'fr-FR';
+    msg.rate = 1; 
+    window.speechSynthesis.speak(msg);
+  };
 
   const resetGame = () => {
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
@@ -50,7 +60,7 @@ function X01Logic() {
     setCurrentPlayerIndex(0);
     setDartsThrown(0);
     setMultiplier(1);
-    setCurrentThrows([]); // On vide l'historique
+    setCurrentThrows([]);
     setWinnerId(null);
   };
 
@@ -63,29 +73,43 @@ function X01Logic() {
       return;
     }
 
-    // NOUVEAU : Enregistrement de la touche en texte (ex: "T20", "D15", "0")
-    const hitStr = val === 0 ? '0' : (multiplier === 3 ? `T${val}` : multiplier === 2 ? `D${val}` : `${val}`);
-    setCurrentThrows((prev) => [...prev, hitStr]);
-
     const points = val * multiplier; 
+    const currentPlayer = players[currentPlayerIndex];
+    const remaining = currentPlayer.score - points;
+    
+    let newScore = currentPlayer.score;
     let isBust = false;
     let didWin = false;
 
-    setPlayers((prev) => {
-      const newPlayers = JSON.parse(JSON.stringify(prev));
-      const p = newPlayers[currentPlayerIndex];
-      const remaining = p.score - points;
-
-      if (remaining > 0) {
-        p.score -= points;
-      } else if (remaining === 0) {
-        p.score = 0;
+    if (remaining > 1) {
+      newScore = remaining;
+    } else if (remaining === 0) {
+      if (multiplier === 2) {
+        newScore = 0;
         didWin = true;
       } else {
-        alert(`Bust ! Score dépassé. Retour à ${p.turnBaseScore}.`);
-        p.score = p.turnBaseScore; 
         isBust = true;
+        newScore = currentPlayer.turnBaseScore;
       }
+    } else {
+      isBust = true;
+      newScore = currentPlayer.turnBaseScore;
+    }
+
+    if (isBust && !didWin && remaining !== 0) {
+      alert(`Bust ! Score dépassé. Retour à ${currentPlayer.turnBaseScore}.`);
+    } else if (isBust && remaining === 0) {
+      alert("Bust ! Tu dois obligatoirement finir par un Double.");
+    } else if (isBust && remaining === 1) {
+      alert("Bust ! Il te reste 1 point, c'est impossible de finir par un Double.");
+    }
+
+    const hitStr = val === 0 ? '0' : (multiplier === 3 ? `T${val}` : multiplier === 2 ? `D${val}` : `${val}`);
+    setCurrentThrows((prev) => [...prev, hitStr]);
+
+    setPlayers((prev) => {
+      const newPlayers = JSON.parse(JSON.stringify(prev));
+      newPlayers[currentPlayerIndex].score = newScore;
       return newPlayers;
     });
 
@@ -94,6 +118,7 @@ function X01Logic() {
     if (didWin) {
       setDartsThrown(dartsThrown + 1); 
       setWinnerId(currentPlayerIndex);
+      announce(`${currentPlayer.name} a gagné la partie!`);
       return;
     }
 
@@ -101,6 +126,12 @@ function X01Logic() {
     setDartsThrown(newCount);
 
     if (newCount >= 3) {
+      if (isBust) {
+        announce("Bust ! Il te reste " + currentPlayer.turnBaseScore);
+      } else {
+        announce("Il te reste " + newScore);
+      }
+
       setTimeout(() => {
         setPlayers((currentPlayers) => {
            const updatedPlayers = JSON.parse(JSON.stringify(currentPlayers));
@@ -108,7 +139,7 @@ function X01Logic() {
         });
         setCurrentPlayerIndex((i) => (i + 1) % players.length);
         setDartsThrown(0);
-        setCurrentThrows([]); // On vide l'historique pour le joueur suivant
+        setCurrentThrows([]);
       }, 1200);
     }
   };
@@ -123,13 +154,15 @@ function X01Logic() {
   return (
     <div className="w-full max-w-md flex flex-col items-center relative">
       
+      {/* OVERLAY DE VICTOIRE */}
       {winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className={`w-full max-w-md ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].headBg} border-2 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].border} rounded-3xl p-6 text-center shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300`}>
             <div className="absolute top-0 left-0 w-full h-full bg-white/5 animate-pulse pointer-events-none" />
             <h1 className="text-4xl font-black text-white mb-2 relative z-10 drop-shadow-md">VICTOIRE !</h1>
-            <h2 className={`text-3xl font-bold mb-6 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].text} relative z-10`}>{winner.name}</h2>
-            
+            <h2 className={`text-3xl font-bold mb-6 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].text} relative z-10`}>
+              {winner.name}
+            </h2>
             <div className="bg-gray-900/60 rounded-xl p-4 mb-6 relative z-10 border border-gray-700/50">
               <h3 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-widest">Scores Finaux</h3>
               <div className="flex flex-col gap-3">
@@ -147,7 +180,6 @@ function X01Logic() {
                 })}
               </div>
             </div>
-            
             <div className="flex flex-col gap-3 relative z-10">
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>Rejouer</button>
               <Link href="/" className="w-full py-4 rounded-xl text-xl font-bold bg-gray-800 text-gray-300 shadow-lg active:scale-95 transition-transform border border-gray-700 block text-center">Menu Principal</Link>
@@ -156,15 +188,22 @@ function X01Logic() {
         </div>
       )}
 
+      {/* EN-TÊTE DU JEU ET BOUTON SON */}
       <div className="w-full flex justify-between items-center mb-4 px-1">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <h1 className="text-xl font-bold text-white tracking-widest uppercase">x01 - {startingScore}</h1>
+        <button 
+          onClick={() => setVoiceEnabled(!voiceEnabled)} 
+          className="text-gray-300 px-3 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
+          title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
+        >
+          {voiceEnabled ? '🔊' : '🔇'}
+        </button>
       </div>
 
       <div className={`w-full bg-gray-800 rounded-3xl p-5 mb-3 text-center shadow-lg relative border-2 transition-colors duration-300 ${currentTheme.border}`}>
          <h2 className={`text-2xl font-bold mb-4 transition-colors duration-300 ${currentTheme.text}`}>{currentPlayer.name}</h2>
          
-         {/* NOUVEAU : Indicateurs Fléchettes + Score cliqué */}
          <div className="flex justify-center gap-4 w-3/4 mx-auto mb-4">
              {[0, 1, 2].map((idx) => (
                <div key={idx} className="flex-1 flex flex-col items-center gap-2">

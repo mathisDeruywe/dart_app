@@ -34,7 +34,19 @@ function CricketLogic() {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [dartsThrown, setDartsThrown] = useState(0);
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
-  const [currentThrows, setCurrentThrows] = useState<string[]>([]); // Restauré : Historique des lancers
+  const [currentThrows, setCurrentThrows] = useState<string[]>([]);
+  
+  const [turnStartScore, setTurnStartScore] = useState(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+
+  const announce = (text: string) => {
+    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'fr-FR'; 
+    msg.rate = 1.1; 
+    window.speechSynthesis.speak(msg);
+  };
 
   const winner = players.find(p => {
     const allClosed = TARGETS.every(t => p.marks[t] === 3);
@@ -54,60 +66,95 @@ function CricketLogic() {
     setDartsThrown(0);
     setMultiplier(1);
     setCurrentThrows([]);
+    setTurnStartScore(0);
   };
 
   const handleHit = (target: number) => {
     if (winner || dartsThrown >= 3) return;
 
-    if (target !== 0) {
-      if (target === 25 && multiplier === 3) {
-        alert("Le Triple Bull n'existe pas !");
-        setMultiplier(1);
-        return;
-      }
-
-      // Enregistrement visuel du lancer (ex: T20, D15, 25)
-      const hitStr = multiplier === 3 ? `T${target}` : multiplier === 2 ? `D${target}` : `${target}`;
-      setCurrentThrows((prev) => [...prev, hitStr]);
-
-      setPlayers((prev) => {
-        const newPlayers = JSON.parse(JSON.stringify(prev));
-        const current = newPlayers[currentPlayerIndex];
-
-        let marksToAdd = multiplier;
-        const currentMarks = current.marks[target];
-
-        if (currentMarks < 3) {
-          const spacesLeft = 3 - currentMarks;
-          const marksTaken = Math.min(spacesLeft, marksToAdd);
-          current.marks[target] += marksTaken;
-          marksToAdd -= marksTaken;
-        }
-
-        if (marksToAdd > 0) {
-          const closedByAll = newPlayers.every((p: Player) => p.marks[target] === 3);
-          if (!closedByAll) {
-            current.score += (target * marksToAdd);
-          }
-        }
-        return newPlayers;
-      });
-    } else {
-      // Cas du Miss (0)
-      setCurrentThrows((prev) => [...prev, '0']);
+    if (target !== 0 && target === 25 && multiplier === 3) {
+      alert("Le Triple Bull n'existe pas !");
+      setMultiplier(1);
+      return;
     }
 
+    const actualStartScore = dartsThrown === 0 ? players[currentPlayerIndex].score : turnStartScore;
+    if (dartsThrown === 0) setTurnStartScore(actualStartScore);
+
+    const hitStr = target === 0 ? '0' : (multiplier === 3 ? `T${target}` : multiplier === 2 ? `D${target}` : `${target}`);
+    setCurrentThrows((prev) => [...prev, hitStr]);
+
+    // CORRECTION ICI : On calcule tout *avant* de mettre à jour le state React
+    const newPlayers = JSON.parse(JSON.stringify(players));
+    const current = newPlayers[currentPlayerIndex];
+    let announcement = "";
+
+    if (target !== 0) {
+      const wasOpenForPlayer = players[currentPlayerIndex].marks[target] >= 3;
+      const wasClosedByAll = players.every((p: Player) => p.marks[target] >= 3);
+
+      let marksToAdd = multiplier;
+      const currentMarks = current.marks[target];
+
+      if (currentMarks < 3) {
+        const spacesLeft = 3 - currentMarks;
+        const marksTaken = Math.min(spacesLeft, marksToAdd);
+        current.marks[target] += marksTaken;
+        marksToAdd -= marksTaken;
+      }
+
+      if (marksToAdd > 0) {
+        const closedByAll = newPlayers.every((p: Player) => p.marks[target] === 3);
+        if (!closedByAll) {
+          current.score += (target * marksToAdd);
+        }
+      }
+
+      const isOpenForPlayer = current.marks[target] >= 3;
+      const isClosedByAll = newPlayers.every((p: Player) => p.marks[target] === 3);
+      const targetName = target === 25 ? "Bull" : target.toString();
+
+      if (!wasClosedByAll && isClosedByAll) {
+        announcement = `Fermeture du ${targetName}`;
+      } else if (!wasOpenForPlayer && isOpenForPlayer) {
+        announcement = `Ouverture du ${targetName}`;
+      }
+    }
+
+    const allClosed = TARGETS.every(t => current.marks[t] === 3);
+    const highestScore = newPlayers.every((other: Player) => other.id === current.id || current.score >= other.score);
+    const didWin = allClosed && highestScore;
+    const finalScore = current.score;
+
+    // On applique les modifications
+    setPlayers(newPlayers);
     setMultiplier(1); 
-    
     const newCount = dartsThrown + 1;
     setDartsThrown(newCount);
 
+    // Et on gère la voix de manière asynchrone mais avec des données fiables
+    if (didWin) {
+      announce(`Victoire de ${current.name} !`);
+      return;
+    }
+
     if (newCount >= 3) {
+      let endAnnouncement = announcement;
+      
+      if (finalScore > actualStartScore) {
+        if (endAnnouncement) endAnnouncement += ". ";
+        endAnnouncement += `${finalScore} points`;
+      }
+      
+      if (endAnnouncement) announce(endAnnouncement);
+      
       setTimeout(() => {
         setCurrentPlayerIndex((i) => (i + 1) % players.length);
         setDartsThrown(0);
         setCurrentThrows([]);
       }, 1200);
+    } else {
+      if (announcement) announce(announcement);
     }
   };
 
@@ -128,9 +175,7 @@ function CricketLogic() {
   return (
     <div className="w-full max-w-md flex flex-col items-center relative pb-6 overflow-hidden">
       
-      {/* =========================================
-          OVERLAY DE VICTOIRE EN POP-UP
-          ========================================= */}
+      {/* OVERLAY DE VICTOIRE EN POP-UP */}
       {winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className={`w-full max-w-md ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].headBg} border-2 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].border} rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300`}>
@@ -151,17 +196,21 @@ function CricketLogic() {
         </div>
       )}
 
-      {/* EN-TÊTE ET BOUTON QUITTER */}
+      {/* EN-TÊTE ET BOUTON QUITTER / SON */}
       <div className="w-full flex justify-between items-center mb-2 px-2 shrink-0">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <h1 className="text-xl font-bold text-white tracking-widest uppercase">Cricket</h1>
+        <button 
+          onClick={() => setVoiceEnabled(!voiceEnabled)} 
+          className="text-gray-300 px-3 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
+          title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
+        >
+          {voiceEnabled ? '🔊' : '🔇'}
+        </button>
       </div>
 
-      {/* =========================================
-          NOUVEAU : CARTE DU JOUEUR ACTIF EN GROS
-          ========================================= */}
+      {/* CARTE DU JOUEUR ACTIF EN GROS */}
       <div className={`w-full rounded-3xl p-5 mb-4 shadow-2xl relative overflow-hidden border-2 transition-all duration-500 ${currentTheme.headBg} ${currentTheme.border}`}>
-        {/* Petit effet de brillance de fond */}
         <div className="absolute top-0 left-0 w-full h-full bg-white/5 pointer-events-none" />
         
         <div className="text-xs font-bold text-gray-300 uppercase tracking-widest mb-1 text-center relative z-10">
@@ -171,13 +220,10 @@ function CricketLogic() {
           {currentPlayer.name}
         </h2>
         
-        {/* Fléchettes et Historique */}
         <div className="flex justify-center gap-4 w-full mx-auto relative z-10">
            {[0, 1, 2].map((idx) => (
              <div key={idx} className="flex-1 flex flex-col items-center gap-2">
-               {/* Rond de fléchette */}
                <div className={`w-4 h-4 rounded-full shadow-md transition-colors duration-300 ${idx < dartsThrown ? currentTheme.fill : 'bg-gray-800 border-2 border-gray-600'}`} />
-               {/* Score cliqué */}
                <div className="w-full text-center text-sm font-bold text-gray-200 bg-gray-900/60 rounded-lg py-1.5 h-8 flex items-center justify-center border border-gray-700/50 shadow-inner">
                  {currentThrows[idx] || '-'}
                </div>
