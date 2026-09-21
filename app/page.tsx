@@ -7,10 +7,11 @@ const PREDEFINED_NAMES = ["Mathis", "Rémi", "Maman", "Papa", "Invité"];
 export default function Home() {
   const router = useRouter();
   
-  const [gameMode, setGameMode] = useState<'x01' | 'cricket' | 'century' | 'scram' | 'clock' | 'steeplechase' | 'doubledown'>('x01');
+  const [gameMode, setGameMode] = useState<'x01' | 'cricket' | 'century' | 'scram' | 'clock' | 'steeplechase' | 'doubledown' | 'allfives'>('x01');
   const [numPlayers, setNumPlayers] = useState<number>(2);
   const [startingScore, setStartingScore] = useState<number>(501);
   const [clockMode, setClockMode] = useState<'normal' | 'double' | 'triple'>('normal');
+  const [allFivesTarget, setAllFivesTarget] = useState<number>(51); // NOUVEAU : Cible All Fives
   const [playerNames, setPlayerNames] = useState<string[]>(['Joueur 1', 'Joueur 2', 'Joueur 3', 'Joueur 4']);
   const [step, setStep] = useState<number>(1);
 
@@ -38,6 +39,8 @@ export default function Home() {
       router.push(`/steeplechase?players=${numPlayers}&names=${activeNames}`);
     } else if (gameMode === 'doubledown') {
       router.push(`/doubledown?players=${numPlayers}&names=${activeNames}`);
+    } else if (gameMode === 'allfives') {
+      router.push(`/allfives?players=${numPlayers}&target=${allFivesTarget}&names=${activeNames}`);
     } else {
       router.push(`/clock?players=${numPlayers}&mode=${clockMode}&names=${activeNames}`);
     }
@@ -50,6 +53,7 @@ export default function Home() {
     if (gameMode === 'clock') return 'text-teal-500';
     if (gameMode === 'steeplechase') return 'text-yellow-500';
     if (gameMode === 'doubledown') return 'text-pink-500';
+    if (gameMode === 'allfives') return 'text-indigo-500';
     return 'text-purple-500';
   };
 
@@ -60,6 +64,7 @@ export default function Home() {
     if (gameMode === 'clock') return 'bg-teal-600';
     if (gameMode === 'steeplechase') return 'bg-yellow-600';
     if (gameMode === 'doubledown') return 'bg-pink-600';
+    if (gameMode === 'allfives') return 'bg-indigo-600';
     return 'bg-purple-600';
   };
 
@@ -71,6 +76,7 @@ export default function Home() {
     if (gameMode === 'clock') return 'bg-teal-600 shadow-lg shadow-teal-900/50 text-white';
     if (gameMode === 'steeplechase') return 'bg-yellow-600 shadow-lg shadow-yellow-900/50 text-white';
     if (gameMode === 'doubledown') return 'bg-pink-600 shadow-lg shadow-pink-900/50 text-white';
+    if (gameMode === 'allfives') return 'bg-indigo-600 shadow-lg shadow-indigo-900/50 text-white';
     return 'bg-purple-600 shadow-lg shadow-purple-900/50 text-white';
   };
 
@@ -102,9 +108,11 @@ export default function Home() {
               <button onClick={() => setGameMode('century')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'century' ? 'bg-purple-600 text-white scale-105 shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Century</button>
               <button onClick={() => setGameMode('clock')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'clock' ? 'bg-teal-600 text-white scale-105 shadow-lg shadow-teal-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Horloge</button>
               <button onClick={() => setGameMode('steeplechase')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'steeplechase' ? 'bg-yellow-600 text-white scale-105 shadow-lg shadow-yellow-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Course</button>
-              <button onClick={() => setGameMode('doubledown')} className={`col-span-2 py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'doubledown' ? 'bg-pink-600 text-white scale-105 shadow-lg shadow-pink-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Double Down</button>
+              <button onClick={() => setGameMode('doubledown')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'doubledown' ? 'bg-pink-600 text-white scale-105 shadow-lg shadow-pink-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Double Down</button>
+              <button onClick={() => setGameMode('allfives')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'allfives' ? 'bg-indigo-600 text-white scale-105 shadow-lg shadow-indigo-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>All Fives</button>
             </div>
 
+            {/* Options x01 */}
             {gameMode === 'x01' && (
               <div className="mt-8 animate-in fade-in zoom-in duration-300">
                 <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Score de départ</h3>
@@ -116,6 +124,7 @@ export default function Home() {
               </div>
             )}
 
+            {/* Options Clock */}
             {gameMode === 'clock' && (
               <div className="mt-8 animate-in fade-in zoom-in duration-300">
                 <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Difficulté</h3>
@@ -123,6 +132,18 @@ export default function Home() {
                   <button onClick={() => setClockMode('normal')} className={`py-3 rounded-xl font-bold transition-all ${clockMode === 'normal' ? 'bg-teal-600 shadow-lg shadow-teal-900/50 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Normal</button>
                   <button onClick={() => setClockMode('double')} className={`py-3 rounded-xl font-bold transition-all ${clockMode === 'double' ? 'bg-teal-600 shadow-lg shadow-teal-900/50 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Double</button>
                   <button onClick={() => setClockMode('triple')} className={`py-3 rounded-xl font-bold transition-all ${clockMode === 'triple' ? 'bg-teal-600 shadow-lg shadow-teal-900/50 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Triple</button>
+                </div>
+              </div>
+            )}
+
+            {/* Options All Fives */}
+            {gameMode === 'allfives' && (
+              <div className="mt-8 animate-in fade-in zoom-in duration-300">
+                <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Score à atteindre</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {[51, 61, 91].map(score => (
+                    <button key={score} onClick={() => setAllFivesTarget(score)} className={`py-3 rounded-xl font-bold transition-all ${allFivesTarget === score ? 'bg-indigo-600 shadow-lg shadow-indigo-900/50 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>{score}</button>
+                  ))}
                 </div>
               </div>
             )}
@@ -158,7 +179,7 @@ export default function Home() {
             <div className="flex flex-col gap-4 mb-8">
               {Array.from({ length: numPlayers }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-2 bg-gray-900/30 p-3 rounded-2xl border border-gray-700/50">
-                  <input type="text" value={playerNames[i]} onChange={(e) => handleNameChange(i, e.target.value)} placeholder={`Joueur ${i + 1}`} maxLength={10} className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'x01' ? 'focus:border-blue-500 border-gray-700' : gameMode === 'cricket' ? 'focus:border-green-500 border-gray-700' : gameMode === 'doubledown' ? 'focus:border-pink-500 border-gray-700' : 'focus:border-purple-500 border-gray-700'}`} />
+                  <input type="text" value={playerNames[i]} onChange={(e) => handleNameChange(i, e.target.value)} placeholder={`Joueur ${i + 1}`} maxLength={10} className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'x01' ? 'focus:border-blue-500 border-gray-700' : gameMode === 'cricket' ? 'focus:border-green-500 border-gray-700' : gameMode === 'allfives' ? 'focus:border-indigo-500 border-gray-700' : 'focus:border-purple-500 border-gray-700'}`} />
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                     {PREDEFINED_NAMES.map(name => (
                       <button key={name} onClick={() => handleNameChange(i, name)} className="whitespace-nowrap px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold rounded-lg active:scale-95 transition-all">{name}</button>
