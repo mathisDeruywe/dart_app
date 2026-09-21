@@ -16,7 +16,7 @@ const NUMBERS = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3
 function X01Logic() {
   const searchParams = useSearchParams();
   const numPlayers = parseInt(searchParams.get('players') || '2');
-  const startingScore = parseInt(searchParams.get('score') || '501');
+  const startingScore = parseInt(searchParams.get('score') || '301');
   
   const namesParam = searchParams.get('names');
   const customNames = namesParam ? namesParam.split(',').map(n => decodeURIComponent(n)) : [];

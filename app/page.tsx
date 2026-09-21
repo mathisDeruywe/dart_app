@@ -4,14 +4,18 @@ import { useRouter } from 'next/navigation';
 
 const PREDEFINED_NAMES = ["Mathis", "Rémi", "Maman", "Papa", "Invité"];
 
+// NOUVEAU : On définit précisément les modes de jeu autorisés pour éviter l'erreur "any"
+type GameMode = 'x01' | 'cricket' | 'century' | 'scram' | 'clock' | 'steeplechase' | 'doubledown' | 'allfives' | 'morpion';
+
 export default function Home() {
   const router = useRouter();
   
-  const [gameMode, setGameMode] = useState<'x01' | 'cricket' | 'century' | 'scram' | 'clock' | 'steeplechase' | 'doubledown' | 'allfives'>('x01');
+  // Utilisation du nouveau type ici
+  const [gameMode, setGameMode] = useState<GameMode>('x01');
   const [numPlayers, setNumPlayers] = useState<number>(2);
   const [startingScore, setStartingScore] = useState<number>(501);
   const [clockMode, setClockMode] = useState<'normal' | 'double' | 'triple'>('normal');
-  const [allFivesTarget, setAllFivesTarget] = useState<number>(51); // NOUVEAU : Cible All Fives
+  const [allFivesTarget, setAllFivesTarget] = useState<number>(51);
   const [playerNames, setPlayerNames] = useState<string[]>(['Joueur 1', 'Joueur 2', 'Joueur 3', 'Joueur 4']);
   const [step, setStep] = useState<number>(1);
 
@@ -21,29 +25,30 @@ export default function Home() {
     setPlayerNames(newNames);
   };
 
+  // CORRECTION ICI : On remplace "any" par "GameMode"
+  const handleModeSelect = (mode: GameMode) => {
+    setGameMode(mode);
+    // Le Morpion se joue obligatoirement à 2 joueurs
+    if (mode === 'morpion') {
+      setNumPlayers(2);
+    }
+  };
+
   const startGame = () => {
     const activeNames = playerNames
       .slice(0, numPlayers)
       .map((n, i) => encodeURIComponent(n.trim() || `Joueur ${i + 1}`))
       .join(',');
 
-    if (gameMode === 'x01') {
-      router.push(`/x01?players=${numPlayers}&score=${startingScore}&names=${activeNames}`);
-    } else if (gameMode === 'cricket') {
-      router.push(`/cricket?players=${numPlayers}&names=${activeNames}`);
-    } else if (gameMode === 'scram') {
-      router.push(`/scram?players=${numPlayers}&names=${activeNames}`);
-    } else if (gameMode === 'century') {
-      router.push(`/century?players=${numPlayers}&names=${activeNames}`);
-    } else if (gameMode === 'steeplechase') {
-      router.push(`/steeplechase?players=${numPlayers}&names=${activeNames}`);
-    } else if (gameMode === 'doubledown') {
-      router.push(`/doubledown?players=${numPlayers}&names=${activeNames}`);
-    } else if (gameMode === 'allfives') {
-      router.push(`/allfives?players=${numPlayers}&target=${allFivesTarget}&names=${activeNames}`);
-    } else {
-      router.push(`/clock?players=${numPlayers}&mode=${clockMode}&names=${activeNames}`);
-    }
+    if (gameMode === 'x01') router.push(`/x01?players=${numPlayers}&score=${startingScore}&names=${activeNames}`);
+    else if (gameMode === 'cricket') router.push(`/cricket?players=${numPlayers}&names=${activeNames}`);
+    else if (gameMode === 'scram') router.push(`/scram?players=${numPlayers}&names=${activeNames}`);
+    else if (gameMode === 'century') router.push(`/century?players=${numPlayers}&names=${activeNames}`);
+    else if (gameMode === 'steeplechase') router.push(`/steeplechase?players=${numPlayers}&names=${activeNames}`);
+    else if (gameMode === 'doubledown') router.push(`/doubledown?players=${numPlayers}&names=${activeNames}`);
+    else if (gameMode === 'allfives') router.push(`/allfives?players=${numPlayers}&target=${allFivesTarget}&names=${activeNames}`);
+    else if (gameMode === 'morpion') router.push(`/morpion?players=2&names=${activeNames}`);
+    else router.push(`/clock?players=${numPlayers}&mode=${clockMode}&names=${activeNames}`);
   };
 
   const getTitleColor = () => {
@@ -54,6 +59,7 @@ export default function Home() {
     if (gameMode === 'steeplechase') return 'text-yellow-500';
     if (gameMode === 'doubledown') return 'text-pink-500';
     if (gameMode === 'allfives') return 'text-indigo-500';
+    if (gameMode === 'morpion') return 'text-red-500';
     return 'text-purple-500';
   };
 
@@ -65,6 +71,7 @@ export default function Home() {
     if (gameMode === 'steeplechase') return 'bg-yellow-600';
     if (gameMode === 'doubledown') return 'bg-pink-600';
     if (gameMode === 'allfives') return 'bg-indigo-600';
+    if (gameMode === 'morpion') return 'bg-red-600';
     return 'bg-purple-600';
   };
 
@@ -77,6 +84,7 @@ export default function Home() {
     if (gameMode === 'steeplechase') return 'bg-yellow-600 shadow-lg shadow-yellow-900/50 text-white';
     if (gameMode === 'doubledown') return 'bg-pink-600 shadow-lg shadow-pink-900/50 text-white';
     if (gameMode === 'allfives') return 'bg-indigo-600 shadow-lg shadow-indigo-900/50 text-white';
+    if (gameMode === 'morpion') return 'bg-red-600 shadow-lg shadow-red-900/50 text-white';
     return 'bg-purple-600 shadow-lg shadow-purple-900/50 text-white';
   };
 
@@ -102,17 +110,18 @@ export default function Home() {
             <h2 className="text-2xl font-bold mb-6 text-gray-200 text-center">Choisissez votre jeu</h2>
             
             <div className="grid grid-cols-2 gap-3 mb-2">
-              <button onClick={() => setGameMode('x01')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'x01' ? 'bg-blue-600 text-white scale-105 shadow-lg shadow-blue-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>x01</button>
-              <button onClick={() => setGameMode('cricket')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'cricket' ? 'bg-green-600 text-white scale-105 shadow-lg shadow-green-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Cricket</button>
-              <button onClick={() => setGameMode('scram')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'scram' ? 'bg-orange-600 text-white scale-105 shadow-lg shadow-orange-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Scram</button>
-              <button onClick={() => setGameMode('century')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'century' ? 'bg-purple-600 text-white scale-105 shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Century</button>
-              <button onClick={() => setGameMode('clock')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'clock' ? 'bg-teal-600 text-white scale-105 shadow-lg shadow-teal-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Horloge</button>
-              <button onClick={() => setGameMode('steeplechase')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'steeplechase' ? 'bg-yellow-600 text-white scale-105 shadow-lg shadow-yellow-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Course</button>
-              <button onClick={() => setGameMode('doubledown')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'doubledown' ? 'bg-pink-600 text-white scale-105 shadow-lg shadow-pink-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Double Down</button>
-              <button onClick={() => setGameMode('allfives')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'allfives' ? 'bg-indigo-600 text-white scale-105 shadow-lg shadow-indigo-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>All Fives</button>
+              <button onClick={() => handleModeSelect('x01')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'x01' ? 'bg-blue-600 text-white scale-105 shadow-lg shadow-blue-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>x01</button>
+              <button onClick={() => handleModeSelect('cricket')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'cricket' ? 'bg-green-600 text-white scale-105 shadow-lg shadow-green-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Cricket</button>
+              <button onClick={() => handleModeSelect('scram')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'scram' ? 'bg-orange-600 text-white scale-105 shadow-lg shadow-orange-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Scram</button>
+              <button onClick={() => handleModeSelect('century')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'century' ? 'bg-purple-600 text-white scale-105 shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Century</button>
+              <button onClick={() => handleModeSelect('clock')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'clock' ? 'bg-teal-600 text-white scale-105 shadow-lg shadow-teal-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Horloge</button>
+              <button onClick={() => handleModeSelect('steeplechase')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'steeplechase' ? 'bg-yellow-600 text-white scale-105 shadow-lg shadow-yellow-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Course</button>
+              <button onClick={() => handleModeSelect('doubledown')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'doubledown' ? 'bg-pink-600 text-white scale-105 shadow-lg shadow-pink-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Double Down</button>
+              <button onClick={() => handleModeSelect('allfives')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'allfives' ? 'bg-indigo-600 text-white scale-105 shadow-lg shadow-indigo-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>All Fives</button>
+              <button onClick={() => handleModeSelect('morpion')} className={`col-span-2 py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'morpion' ? 'bg-red-600 text-white scale-105 shadow-lg shadow-red-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Morpion</button>
             </div>
 
-            {/* Options x01 */}
+            {/* Options conditionnelles */}
             {gameMode === 'x01' && (
               <div className="mt-8 animate-in fade-in zoom-in duration-300">
                 <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Score de départ</h3>
@@ -124,7 +133,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Options Clock */}
             {gameMode === 'clock' && (
               <div className="mt-8 animate-in fade-in zoom-in duration-300">
                 <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Difficulté</h3>
@@ -136,7 +144,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Options All Fives */}
             {gameMode === 'allfives' && (
               <div className="mt-8 animate-in fade-in zoom-in duration-300">
                 <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Score à atteindre</h3>
@@ -161,9 +168,20 @@ export default function Home() {
             
             <div className="flex gap-4 justify-center mb-8">
               {[1, 2, 3, 4].map((num) => (
-                <button key={num} onClick={() => setNumPlayers(num)} className={`w-16 h-16 rounded-full text-2xl font-bold transition-all ${getPlayerBtnColor(num)}`}>{num}</button>
+                <button 
+                  key={num} 
+                  onClick={() => setNumPlayers(num)} 
+                  disabled={gameMode === 'morpion' && num !== 2}
+                  className={`w-16 h-16 rounded-full text-2xl font-bold transition-all ${getPlayerBtnColor(num)} ${gameMode === 'morpion' && num !== 2 ? 'opacity-20 cursor-not-allowed' : ''}`}
+                >
+                  {num}
+                </button>
               ))}
             </div>
+            
+            {gameMode === 'morpion' && (
+              <p className="text-center text-sm font-bold text-red-400 mb-6 animate-pulse">Le Morpion se joue obligatoirement à 2 joueurs !</p>
+            )}
 
             <button onClick={() => setStep(3)} className={`w-full p-4 rounded-xl text-xl font-bold transition-all active:scale-95 shadow-lg ${getThemeBgColor()} hover:opacity-90`}>
               Continuer ➔
@@ -179,7 +197,7 @@ export default function Home() {
             <div className="flex flex-col gap-4 mb-8">
               {Array.from({ length: numPlayers }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-2 bg-gray-900/30 p-3 rounded-2xl border border-gray-700/50">
-                  <input type="text" value={playerNames[i]} onChange={(e) => handleNameChange(i, e.target.value)} placeholder={`Joueur ${i + 1}`} maxLength={10} className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'x01' ? 'focus:border-blue-500 border-gray-700' : gameMode === 'cricket' ? 'focus:border-green-500 border-gray-700' : gameMode === 'allfives' ? 'focus:border-indigo-500 border-gray-700' : 'focus:border-purple-500 border-gray-700'}`} />
+                  <input type="text" value={playerNames[i]} onChange={(e) => handleNameChange(i, e.target.value)} placeholder={gameMode === 'morpion' ? (i === 0 ? 'Joueur X' : 'Joueur O') : `Joueur ${i + 1}`} maxLength={10} className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'morpion' ? 'focus:border-red-500 border-gray-700' : 'focus:border-gray-500 border-gray-700'}`} />
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                     {PREDEFINED_NAMES.map(name => (
                       <button key={name} onClick={() => handleNameChange(i, name)} className="whitespace-nowrap px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold rounded-lg active:scale-95 transition-all">{name}</button>
