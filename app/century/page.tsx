@@ -32,22 +32,29 @@ function CenturyLogic() {
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [turnStartScore, setTurnStartScore] = useState(0);
+  
   const currentPlayerIndex = currentTurn % numPlayers;
   const currentRound = Math.floor(currentTurn / numPlayers) + 1;
-  const isGameOver = currentTurn >= numPlayers * 3; // 3 rounds pour tous les joueurs
+  const isGameOver = currentTurn >= numPlayers * 3;
 
-  // NOUVEAU : Logique de tri selon les vraies règles
+  const announce = (text: string) => {
+    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'fr-FR'; 
+    msg.rate = 1; 
+    window.speechSynthesis.speak(msg);
+  };
+
   const sortedPlayersByClosest = [...players].sort((a, b) => {
     const aValid = a.score <= 100;
     const bValid = b.score <= 100;
 
-    // Si A n'a pas dépassé mais que B a dépassé -> A passe devant
     if (aValid && !bValid) return -1;
-    // Si B n'a pas dépassé mais que A a dépassé -> B passe devant
     if (!aValid && bValid) return 1;
-    // Si les deux n'ont pas dépassé -> le plus grand score gagne
     if (aValid && bValid) return b.score - a.score;
-    // Si les deux ont dépassé -> le plus petit score (le plus proche de 100) gagne
     return a.score - b.score;
   });
   
@@ -63,6 +70,7 @@ function CenturyLogic() {
     setDartsThrown(0);
     setMultiplier(1);
     setCurrentThrows([]);
+    setTurnStartScore(0);
   };
 
   const handleScore = (val: number) => {
@@ -74,25 +82,53 @@ function CenturyLogic() {
       return;
     }
 
-    const points = val * multiplier; 
-    const p = players[currentPlayerIndex];
-    const newScore = p.score + points; 
-    
+    const actualStartScore = dartsThrown === 0 ? players[currentPlayerIndex].score : turnStartScore;
+    if (dartsThrown === 0) setTurnStartScore(actualStartScore);
+
     const hitStr = val === 0 ? '0' : (multiplier === 3 ? `T${val}` : multiplier === 2 ? `D${val}` : `${val}`);
     setCurrentThrows((prev) => [...prev, hitStr]);
 
-    setPlayers((prev) => {
-      const newPlayers = JSON.parse(JSON.stringify(prev));
-      newPlayers[currentPlayerIndex].score = newScore;
-      return newPlayers;
-    });
-
+    const points = val * multiplier; 
+    
+    const newPlayers = JSON.parse(JSON.stringify(players));
+    const p = newPlayers[currentPlayerIndex];
+    const newScore = p.score + points; 
+    
+    p.score = newScore;
+    
+    setPlayers(newPlayers);
     setMultiplier(1);
 
     const newCount = dartsThrown + 1;
     setDartsThrown(newCount);
 
     if (newCount >= 3) {
+      const isNowGameOver = currentTurn + 1 >= numPlayers * 3;
+      
+      if (isNowGameOver) {
+        const finalSorted = [...newPlayers].sort((a, b) => {
+          const aValid = a.score <= 100;
+          const bValid = b.score <= 100;
+          if (aValid && !bValid) return -1;
+          if (!aValid && bValid) return 1;
+          if (aValid && bValid) return b.score - a.score;
+          return a.score - b.score;
+        });
+        announce(`Fin du jeu ! Victoire de ${finalSorted[0].name} !`);
+      } else {
+        if (newScore > actualStartScore) {
+          if (newScore > 100) {
+            announce(`${newScore} points. Dépassé !`);
+          } else if (newScore === 100) {
+            announce(`100 points ! Parfait !`);
+          } else {
+            // AJOUT ICI : Annonce du score et de ce qu'il reste
+            const remaining = 100 - newScore;
+            announce(`${newScore} points. Reste ${remaining}.`);
+          }
+        }
+      }
+
       setTimeout(() => {
         setCurrentTurn(prev => prev + 1);
         setDartsThrown(0);
@@ -110,11 +146,9 @@ function CenturyLogic() {
   const displayRound = Math.min(currentRound, 3);
 
   return (
-    <div className="w-full max-w-md flex flex-col items-center relative">
+    <div className="w-full max-w-md flex flex-col items-center relative pb-6 overflow-hidden">
       
-      {/* =========================================
-          OVERLAY DE VICTOIRE / FIN DE PARTIE
-          ========================================= */}
+      {/* OVERLAY DE VICTOIRE / FIN DE PARTIE */}
       {isGameOver && winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className={`w-full max-w-md ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].headBg} border-2 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].border} rounded-3xl p-6 text-center shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300`}>
@@ -134,7 +168,6 @@ function CenturyLogic() {
                   const isWinner = winner.id === p.id;
                   const diff = Math.abs(p.score - 100);
                   
-                  // Affichage dynamique et précis de la situation du joueur
                   let diffText = "";
                   if (p.score === 100) diffText = "Pile 100 !";
                   else if (p.score < 100) diffText = `Il te reste : ${diff}`;
@@ -165,7 +198,7 @@ function CenturyLogic() {
         </div>
       )}
 
-      {/* EN-TÊTE DU JEU */}
+      {/* EN-TÊTE DU JEU ET BOUTON SON */}
       <div className="w-full flex justify-between items-center mb-4 px-1">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <div className="flex flex-col items-center">
@@ -174,6 +207,13 @@ function CenturyLogic() {
             Round {displayRound}/3
           </span>
         </div>
+        <button 
+          onClick={() => setVoiceEnabled(!voiceEnabled)} 
+          className="text-gray-300 px-3 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
+          title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
+        >
+          {voiceEnabled ? '🔊' : '🔇'}
+        </button>
       </div>
 
       {/* JOUEUR ACTIF */}

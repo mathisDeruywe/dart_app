@@ -54,7 +54,7 @@ function ScramLogic() {
     window.speechSynthesis.cancel();
     const msg = new SpeechSynthesisUtterance(text);
     msg.lang = 'fr-FR'; 
-    msg.rate = 1.1; 
+    msg.rate = 1; 
     window.speechSynthesis.speak(msg);
   };
 
