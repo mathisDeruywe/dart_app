@@ -1,5 +1,5 @@
 "use client";
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -36,10 +36,52 @@ function ScramLogic() {
   
   const [boardMarks, setBoardMarks] = useState<Record<number, number>>({ 20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 25: 0 });
   const [isGameOver, setIsGameOver] = useState(false);
-
-  // NOUVEAU : États pour le système audio
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [turnStartScore, setTurnStartScore] = useState(0);
+
+  // ==========================================
+  // SYSTÈME AUDIO & GESTION DES VOIX
+  // ==========================================
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>('');
+
+  useEffect(() => {
+    const loadVoices = () => {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const availableVoices = window.speechSynthesis.getVoices();
+      
+      let frVoices = availableVoices.filter(v => v.lang.startsWith('fr'));
+      if (frVoices.length === 0) frVoices = availableVoices; 
+      
+      setVoices(frVoices);
+      
+      if (frVoices.length > 0 && !selectedVoiceURI) {
+        setSelectedVoiceURI(frVoices[0].voiceURI);
+      }
+    };
+
+    loadVoices();
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, [selectedVoiceURI]);
+
+  const announce = (text: string) => {
+    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'fr-FR'; 
+    msg.rate = 1; 
+    
+    if (selectedVoiceURI) {
+      const chosenVoice = voices.find(v => v.voiceURI === selectedVoiceURI);
+      if (chosenVoice) msg.voice = chosenVoice;
+    }
+
+    window.speechSynthesis.speak(msg);
+  };
+  // ==========================================
 
   const stopperId = inning;
   const activePlayerIndex = (inning + turnInInning) % numPlayers;
@@ -47,16 +89,6 @@ function ScramLogic() {
 
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
   const winner = isGameOver ? sortedPlayers[0] : null;
-
-  // NOUVEAU : Fonction d'annonce audio
-  const announce = (text: string) => {
-    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const msg = new SpeechSynthesisUtterance(text);
-    msg.lang = 'fr-FR'; 
-    msg.rate = 1; 
-    window.speechSynthesis.speak(msg);
-  };
 
   const resetGame = () => {
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
@@ -83,7 +115,6 @@ function ScramLogic() {
       return;
     }
 
-    // Capture le score du joueur actif au début de son tour
     const actualStartScore = dartsThrown === 0 ? players[activePlayerIndex].score : turnStartScore;
     if (dartsThrown === 0) setTurnStartScore(actualStartScore);
 
@@ -98,13 +129,11 @@ function ScramLogic() {
 
     if (val !== 0) {
       if (isStopper) {
-        // LE BLOQUEUR ferme les cibles
         const currentMarks = localBoardMarks[val];
         if (currentMarks < 3) {
           const marksToAdd = Math.min(3 - currentMarks, multiplier);
           localBoardMarks[val] += marksToAdd;
           
-          // Vérification de la fermeture pour l'audio
           if (localBoardMarks[val] === 3) {
             const targetName = val === 25 ? "Bull" : val.toString();
             announcement = `Fermeture du ${targetName}`;
@@ -115,7 +144,6 @@ function ScramLogic() {
           }
         }
       } else {
-        // LES SCOREURS gagnent des points sur les cibles ouvertes
         if (localBoardMarks[val] < 3) {
           newPlayers[activePlayerIndex].score += val * multiplier;
         }
@@ -132,7 +160,6 @@ function ScramLogic() {
     const finalScore = newPlayers[activePlayerIndex].score;
 
     if (inningEnded) {
-      // Si la manche est finie et que c'était la dernière
       if (inning + 1 >= numPlayers) {
         const sorted = [...newPlayers].sort((a: Player, b: Player) => b.score - a.score);
         announce(`Fin du jeu ! Victoire de ${sorted[0].name} !`);
@@ -158,7 +185,6 @@ function ScramLogic() {
     } else if (newCount >= 3) {
       let endAnnouncement = announcement;
       
-      // Si c'est un scoreur et qu'il a marqué, on annonce son score à la fin de ses 3 flèches
       if (!isStopper && finalScore > actualStartScore) {
         if (endAnnouncement) endAnnouncement += ". ";
         endAnnouncement += `${finalScore} points`;
@@ -173,7 +199,6 @@ function ScramLogic() {
       }, 1200);
       
     } else {
-      // Annonce la fermeture de cible en direct pendant le tour du bloqueur
       if (announcement) announce(announcement);
     }
   };
@@ -195,9 +220,7 @@ function ScramLogic() {
   return (
     <div className="w-full max-w-md flex flex-col items-center relative pb-6 overflow-hidden">
       
-      {/* =========================================
-          OVERLAY DE VICTOIRE
-          ========================================= */}
+      {/* OVERLAY DE VICTOIRE */}
       {isGameOver && winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className={`w-full max-w-md ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].headBg} border-2 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].border} rounded-3xl p-6 text-center shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300`}>
@@ -234,7 +257,7 @@ function ScramLogic() {
         </div>
       )}
 
-      {/* EN-TÊTE ET BOUTON SON */}
+      {/* EN-TÊTE ET SÉLECTEUR DE VOIX */}
       <div className="w-full flex justify-between items-center mb-4 px-1">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <div className="flex flex-col items-center">
@@ -243,13 +266,26 @@ function ScramLogic() {
             Manche {inning + 1}/{numPlayers}
           </span>
         </div>
-        <button 
-          onClick={() => setVoiceEnabled(!voiceEnabled)} 
-          className="text-gray-300 px-3 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
-          title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
-        >
-          {voiceEnabled ? '🔊' : '🔇'}
-        </button>
+        <div className="flex items-center gap-1">
+          {voiceEnabled && voices.length > 0 && (
+            <select 
+              value={selectedVoiceURI} 
+              onChange={(e) => setSelectedVoiceURI(e.target.value)}
+              className="bg-gray-800 text-gray-300 text-[10px] rounded-lg border border-gray-700 p-1 w-20 truncate focus:outline-none"
+            >
+              {voices.map(v => (
+                <option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>
+              ))}
+            </select>
+          )}
+          <button 
+            onClick={() => setVoiceEnabled(!voiceEnabled)} 
+            className="text-gray-300 px-2 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
+            title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
+          >
+            {voiceEnabled ? '🔊' : '🔇'}
+          </button>
+        </div>
       </div>
 
       {/* JOUEUR ACTIF */}

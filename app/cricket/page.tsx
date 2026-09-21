@@ -1,5 +1,5 @@
 "use client";
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -37,16 +37,51 @@ function CricketLogic() {
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
   const [turnStartScore, setTurnStartScore] = useState(0);
+
+  // ==========================================
+  // SYSTÈME AUDIO & GESTION DES VOIX
+  // ==========================================
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>('');
+
+  useEffect(() => {
+    const loadVoices = () => {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const availableVoices = window.speechSynthesis.getVoices();
+      
+      let frVoices = availableVoices.filter(v => v.lang.startsWith('fr'));
+      if (frVoices.length === 0) frVoices = availableVoices; 
+      
+      setVoices(frVoices);
+      
+      if (frVoices.length > 0 && !selectedVoiceURI) {
+        setSelectedVoiceURI(frVoices[0].voiceURI);
+      }
+    };
+
+    loadVoices();
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, [selectedVoiceURI]);
 
   const announce = (text: string) => {
     if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
+    
     const msg = new SpeechSynthesisUtterance(text);
     msg.lang = 'fr-FR'; 
     msg.rate = 1; 
+    
+    if (selectedVoiceURI) {
+      const chosenVoice = voices.find(v => v.voiceURI === selectedVoiceURI);
+      if (chosenVoice) msg.voice = chosenVoice;
+    }
+
     window.speechSynthesis.speak(msg);
   };
+  // ==========================================
 
   const winner = players.find(p => {
     const allClosed = TARGETS.every(t => p.marks[t] === 3);
@@ -84,7 +119,6 @@ function CricketLogic() {
     const hitStr = target === 0 ? '0' : (multiplier === 3 ? `T${target}` : multiplier === 2 ? `D${target}` : `${target}`);
     setCurrentThrows((prev) => [...prev, hitStr]);
 
-    // CORRECTION ICI : On calcule tout *avant* de mettre à jour le state React
     const newPlayers = JSON.parse(JSON.stringify(players));
     const current = newPlayers[currentPlayerIndex];
     let announcement = "";
@@ -126,13 +160,11 @@ function CricketLogic() {
     const didWin = allClosed && highestScore;
     const finalScore = current.score;
 
-    // On applique les modifications
     setPlayers(newPlayers);
     setMultiplier(1); 
     const newCount = dartsThrown + 1;
     setDartsThrown(newCount);
 
-    // Et on gère la voix de manière asynchrone mais avec des données fiables
     if (didWin) {
       announce(`Victoire de ${current.name} !`);
       return;
@@ -196,17 +228,31 @@ function CricketLogic() {
         </div>
       )}
 
-      {/* EN-TÊTE ET BOUTON QUITTER / SON */}
+      {/* EN-TÊTE ET SÉLECTEUR DE VOIX */}
       <div className="w-full flex justify-between items-center mb-2 px-2 shrink-0">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <h1 className="text-xl font-bold text-white tracking-widest uppercase">Cricket</h1>
-        <button 
-          onClick={() => setVoiceEnabled(!voiceEnabled)} 
-          className="text-gray-300 px-3 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
-          title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
-        >
-          {voiceEnabled ? '🔊' : '🔇'}
-        </button>
+        
+        <div className="flex items-center gap-1">
+          {voiceEnabled && voices.length > 0 && (
+            <select 
+              value={selectedVoiceURI} 
+              onChange={(e) => setSelectedVoiceURI(e.target.value)}
+              className="bg-gray-800 text-gray-300 text-[10px] rounded-lg border border-gray-700 p-1 w-20 truncate focus:outline-none"
+            >
+              {voices.map(v => (
+                <option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>
+              ))}
+            </select>
+          )}
+          <button 
+            onClick={() => setVoiceEnabled(!voiceEnabled)} 
+            className="text-gray-300 px-2 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
+            title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
+          >
+            {voiceEnabled ? '🔊' : '🔇'}
+          </button>
+        </div>
       </div>
 
       {/* CARTE DU JOUEUR ACTIF EN GROS */}

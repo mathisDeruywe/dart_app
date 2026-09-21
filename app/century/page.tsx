@@ -1,5 +1,5 @@
 "use client";
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -32,21 +32,62 @@ function CenturyLogic() {
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [turnStartScore, setTurnStartScore] = useState(0);
+  
+  // ==========================================
+  // SYSTÈME AUDIO & GESTION DES VOIX
+  // ==========================================
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>('');
+
+  // 1. Récupération des voix au chargement de la page
+  useEffect(() => {
+    const loadVoices = () => {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const availableVoices = window.speechSynthesis.getVoices();
+      
+      // On filtre pour ne garder de préférence que les voix françaises
+      let frVoices = availableVoices.filter(v => v.lang.startsWith('fr'));
+      if (frVoices.length === 0) frVoices = availableVoices; // Sécurité si aucune voix FR
+      
+      setVoices(frVoices);
+      
+      // On sélectionne la première voix par défaut si rien n'est sélectionné
+      if (frVoices.length > 0 && !selectedVoiceURI) {
+        setSelectedVoiceURI(frVoices[0].voiceURI);
+      }
+    };
+
+    loadVoices();
+    // Les navigateurs chargent parfois les voix de manière asynchrone
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, [selectedVoiceURI]);
+
+  // 2. Fonction d'annonce mise à jour avec la voix choisie
+  const announce = (text: string) => {
+    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'fr-FR'; 
+    msg.rate = 1; 
+    
+    // Application de la voix sélectionnée
+    if (selectedVoiceURI) {
+      const chosenVoice = voices.find(v => v.voiceURI === selectedVoiceURI);
+      if (chosenVoice) msg.voice = chosenVoice;
+    }
+
+    window.speechSynthesis.speak(msg);
+  };
+  // ==========================================
   
   const currentPlayerIndex = currentTurn % numPlayers;
   const currentRound = Math.floor(currentTurn / numPlayers) + 1;
   const isGameOver = currentTurn >= numPlayers * 3;
-
-  const announce = (text: string) => {
-    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const msg = new SpeechSynthesisUtterance(text);
-    msg.lang = 'fr-FR'; 
-    msg.rate = 1; 
-    window.speechSynthesis.speak(msg);
-  };
 
   const sortedPlayersByClosest = [...players].sort((a, b) => {
     const aValid = a.score <= 100;
@@ -122,7 +163,6 @@ function CenturyLogic() {
           } else if (newScore === 100) {
             announce(`100 points ! Parfait !`);
           } else {
-            // AJOUT ICI : Annonce du score et de ce qu'il reste
             const remaining = 100 - newScore;
             announce(`${newScore} points. Reste ${remaining}.`);
           }
@@ -198,7 +238,7 @@ function CenturyLogic() {
         </div>
       )}
 
-      {/* EN-TÊTE DU JEU ET BOUTON SON */}
+      {/* EN-TÊTE DU JEU ET SÉLECTEUR DE VOIX */}
       <div className="w-full flex justify-between items-center mb-4 px-1">
         <Link href="/" className="text-gray-400 px-3 py-2 font-bold text-sm bg-gray-800 hover:bg-gray-700 transition-all rounded-lg">← Quitter</Link>
         <div className="flex flex-col items-center">
@@ -207,13 +247,28 @@ function CenturyLogic() {
             Round {displayRound}/3
           </span>
         </div>
-        <button 
-          onClick={() => setVoiceEnabled(!voiceEnabled)} 
-          className="text-gray-300 px-3 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
-          title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
-        >
-          {voiceEnabled ? '🔊' : '🔇'}
-        </button>
+        
+        {/* NOUVEAU : Bloc Son + Choix de la voix */}
+        <div className="flex items-center gap-1">
+          {voiceEnabled && voices.length > 0 && (
+            <select 
+              value={selectedVoiceURI} 
+              onChange={(e) => setSelectedVoiceURI(e.target.value)}
+              className="bg-gray-800 text-gray-300 text-[10px] rounded-lg border border-gray-700 p-1 w-20 truncate focus:outline-none"
+            >
+              {voices.map(v => (
+                <option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>
+              ))}
+            </select>
+          )}
+          <button 
+            onClick={() => setVoiceEnabled(!voiceEnabled)} 
+            className="text-gray-300 px-2 py-1 bg-gray-800 hover:bg-gray-700 transition-all rounded-lg text-lg border border-gray-700"
+            title={voiceEnabled ? "Désactiver la voix" : "Activer la voix"}
+          >
+            {voiceEnabled ? '🔊' : '🔇'}
+          </button>
+        </div>
       </div>
 
       {/* JOUEUR ACTIF */}
