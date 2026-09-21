@@ -7,7 +7,7 @@ const PREDEFINED_NAMES = ["Mathis", "Rémi", "Maman", "Papa", "Invité"];
 export default function Home() {
   const router = useRouter();
   
-  const [gameMode, setGameMode] = useState<'x01' | 'cricket' | 'century' | 'scram' | 'clock' | 'steeplechase'>('x01');
+  const [gameMode, setGameMode] = useState<'x01' | 'cricket' | 'century' | 'scram' | 'clock' | 'steeplechase' | 'doubledown'>('x01');
   const [numPlayers, setNumPlayers] = useState<number>(2);
   const [startingScore, setStartingScore] = useState<number>(501);
   const [clockMode, setClockMode] = useState<'normal' | 'double' | 'triple'>('normal');
@@ -36,6 +36,8 @@ export default function Home() {
       router.push(`/century?players=${numPlayers}&names=${activeNames}`);
     } else if (gameMode === 'steeplechase') {
       router.push(`/steeplechase?players=${numPlayers}&names=${activeNames}`);
+    } else if (gameMode === 'doubledown') {
+      router.push(`/doubledown?players=${numPlayers}&names=${activeNames}`);
     } else {
       router.push(`/clock?players=${numPlayers}&mode=${clockMode}&names=${activeNames}`);
     }
@@ -47,6 +49,7 @@ export default function Home() {
     if (gameMode === 'scram') return 'text-orange-500';
     if (gameMode === 'clock') return 'text-teal-500';
     if (gameMode === 'steeplechase') return 'text-yellow-500';
+    if (gameMode === 'doubledown') return 'text-pink-500';
     return 'text-purple-500';
   };
 
@@ -56,6 +59,7 @@ export default function Home() {
     if (gameMode === 'scram') return 'bg-orange-600';
     if (gameMode === 'clock') return 'bg-teal-600';
     if (gameMode === 'steeplechase') return 'bg-yellow-600';
+    if (gameMode === 'doubledown') return 'bg-pink-600';
     return 'bg-purple-600';
   };
 
@@ -66,6 +70,7 @@ export default function Home() {
     if (gameMode === 'scram') return 'bg-orange-600 shadow-lg shadow-orange-900/50 text-white';
     if (gameMode === 'clock') return 'bg-teal-600 shadow-lg shadow-teal-900/50 text-white';
     if (gameMode === 'steeplechase') return 'bg-yellow-600 shadow-lg shadow-yellow-900/50 text-white';
+    if (gameMode === 'doubledown') return 'bg-pink-600 shadow-lg shadow-pink-900/50 text-white';
     return 'bg-purple-600 shadow-lg shadow-purple-900/50 text-white';
   };
 
@@ -97,6 +102,7 @@ export default function Home() {
               <button onClick={() => setGameMode('century')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'century' ? 'bg-purple-600 text-white scale-105 shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Century</button>
               <button onClick={() => setGameMode('clock')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'clock' ? 'bg-teal-600 text-white scale-105 shadow-lg shadow-teal-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Horloge</button>
               <button onClick={() => setGameMode('steeplechase')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'steeplechase' ? 'bg-yellow-600 text-white scale-105 shadow-lg shadow-yellow-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Course</button>
+              <button onClick={() => setGameMode('doubledown')} className={`col-span-2 py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'doubledown' ? 'bg-pink-600 text-white scale-105 shadow-lg shadow-pink-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Double Down</button>
             </div>
 
             {gameMode === 'x01' && (
@@ -152,7 +158,7 @@ export default function Home() {
             <div className="flex flex-col gap-4 mb-8">
               {Array.from({ length: numPlayers }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-2 bg-gray-900/30 p-3 rounded-2xl border border-gray-700/50">
-                  <input type="text" value={playerNames[i]} onChange={(e) => handleNameChange(i, e.target.value)} placeholder={`Joueur ${i + 1}`} maxLength={10} className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'x01' ? 'focus:border-blue-500 border-gray-700' : gameMode === 'cricket' ? 'focus:border-green-500 border-gray-700' : gameMode === 'scram' ? 'focus:border-orange-500 border-gray-700' : gameMode === 'steeplechase' ? 'focus:border-yellow-500 border-gray-700' : 'focus:border-purple-500 border-gray-700'}`} />
+                  <input type="text" value={playerNames[i]} onChange={(e) => handleNameChange(i, e.target.value)} placeholder={`Joueur ${i + 1}`} maxLength={10} className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'x01' ? 'focus:border-blue-500 border-gray-700' : gameMode === 'cricket' ? 'focus:border-green-500 border-gray-700' : gameMode === 'doubledown' ? 'focus:border-pink-500 border-gray-700' : 'focus:border-purple-500 border-gray-700'}`} />
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                     {PREDEFINED_NAMES.map(name => (
                       <button key={name} onClick={() => handleNameChange(i, name)} className="whitespace-nowrap px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold rounded-lg active:scale-95 transition-all">{name}</button>
