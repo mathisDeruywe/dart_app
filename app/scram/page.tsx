@@ -159,6 +159,29 @@ function ScramLogic() {
 
     const finalScore = newPlayers[activePlayerIndex].score;
 
+    // ==================================================
+    // NOUVEAU : LOGIQUE DE VICTOIRE ANTICIPÉE
+    // ==================================================
+    let earlyWin = false;
+    
+    // Si nous sommes à 2 joueurs, dans la 2ème manche (inning 1)
+    // et que le joueur actuel (qui marque des points) dépasse le score du bloqueur.
+    if (numPlayers === 2 && inning === 1 && !isStopper) {
+      const stopperScore = newPlayers[stopperId].score;
+      if (finalScore > stopperScore) {
+        earlyWin = true;
+      }
+    }
+
+    if (earlyWin) {
+      announce(`Dépassé ! Victoire de ${newPlayers[activePlayerIndex].name} !`);
+      setTimeout(() => {
+        setIsGameOver(true);
+      }, 1200);
+      return; // On arrête l'exécution ici, pas besoin de vérifier le reste
+    }
+    // ==================================================
+
     if (inningEnded) {
       if (inning + 1 >= numPlayers) {
         const sorted = [...newPlayers].sort((a: Player, b: Player) => b.score - a.score);

@@ -9,21 +9,33 @@ const PLAYER_COLORS = [
   { text: 'text-red-400', fill: 'bg-red-500', btn: 'bg-red-600 active:bg-red-500', border: 'border-red-500/50', headBg: 'bg-red-900/40', symbol: 'O' },
 ];
 
-// Configuration exacte d'un jeu de fléchettes physique
-const TARGETS = [
-  12, 20, 18,
-  11, 25, 6,
-  7,  3,  2
-];
+const ALL_NUMBERS = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 25];
 
-const WINNING_LINES = [
-  [12, 20, 18], [11, 25, 6], [7, 3, 2], // Lignes horizontales
-  [12, 11, 7], [20, 25, 3], [18, 6, 2], // Lignes verticales
-  [12, 25, 2], [18, 25, 7]              // Diagonales
+const WINNING_INDICES = [
+  [0, 1, 2], [3, 4, 5], [6, 7, 8], // Lignes horizontales
+  [0, 3, 6], [1, 4, 7], [2, 5, 8], // Lignes verticales
+  [0, 4, 8], [2, 4, 6]             // Diagonales
 ];
 
 type Player = { id: number; name: string };
 type CellMarks = { 0: number; 1: number };
+
+// Fonctions d'initialisation externes
+const createRandomTargets = () => {
+  return [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0, 9);
+};
+
+const createInitMarks = () => {
+  const init: Record<number, CellMarks> = {};
+  for (let i = 0; i < 9; i++) init[i] = { 0: 0, 1: 0 };
+  return init;
+};
+
+const createInitOwners = () => {
+  const init: Record<number, number | null> = {};
+  for (let i = 0; i < 9; i++) init[i] = null;
+  return init;
+};
 
 function MorpionLogic() {
   const searchParams = useSearchParams();
@@ -34,20 +46,28 @@ function MorpionLogic() {
     { id: 0, name: customNames[0] || 'Joueur X' },
     { id: 1, name: customNames[1] || 'Joueur O' }
   ]);
-  
-  // État de la grille : Pour chaque nombre, on compte les marques (hits) de P0 et P1
-  const [marks, setMarks] = useState<Record<number, CellMarks>>(() => {
-    const init: Record<number, CellMarks> = {};
-    TARGETS.forEach(t => init[t] = { 0: 0, 1: 0 });
-    return init;
-  });
 
-  // Propriétaires définitifs des cases (0 = P0, 1 = P1, null = personne)
-  const [owners, setOwners] = useState<Record<number, number | null>>(() => {
-    const init: Record<number, number | null> = {};
-    TARGETS.forEach(t => init[t] = null);
-    return init;
-  });
+  // ==========================================
+  // GRILLE ALÉATOIRE & ÉTATS DE JEU (CORRIGÉ)
+  // ==========================================
+  const [isMounted, setIsMounted] = useState(false);
+  const [gridTargets, setGridTargets] = useState<number[]>([]);
+  const [marks, setMarks] = useState<Record<number, CellMarks>>({});
+  const [owners, setOwners] = useState<Record<number, number | null>>({});
+
+  useEffect(() => {
+    // Le setTimeout permet de rendre l'initialisation asynchrone !
+    // -> ESLint ne crie plus au "cascading render"
+    // -> Next.js ne plante plus avec une erreur d'hydratation (SSR)
+    const timer = setTimeout(() => {
+      setGridTargets(createRandomTargets());
+      setMarks(createInitMarks());
+      setOwners(createInitOwners());
+      setIsMounted(true);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [dartsThrown, setDartsThrown] = useState(0);
@@ -91,12 +111,9 @@ function MorpionLogic() {
   };
 
   const resetGame = () => {
-    const initMarks: Record<number, CellMarks> = {};
-    const initOwners: Record<number, number | null> = {};
-    TARGETS.forEach(t => { initMarks[t] = { 0: 0, 1: 0 }; initOwners[t] = null; });
-    
-    setMarks(initMarks);
-    setOwners(initOwners);
+    setGridTargets(createRandomTargets());
+    setMarks(createInitMarks());
+    setOwners(createInitOwners());
     setCurrentPlayerIndex(0);
     setDartsThrown(0);
     setMultiplier(1);
@@ -106,15 +123,17 @@ function MorpionLogic() {
   };
 
   const checkWin = (currentOwners: Record<number, number | null>, playerId: number) => {
-    return WINNING_LINES.some(line => line.every(target => currentOwners[target] === playerId));
+    return WINNING_INDICES.some(line => line.every(index => currentOwners[index] === playerId));
   };
 
   const checkDraw = (currentOwners: Record<number, number | null>) => {
-    return TARGETS.every(target => currentOwners[target] !== null);
+    return Object.values(currentOwners).every(owner => owner !== null);
   };
 
-  const handleScore = (val: number) => {
+  const handleScore = (index: number | null) => {
     if (winnerId !== null || isDraw || dartsThrown >= 3) return;
+
+    const val = index !== null ? gridTargets[index] : 0;
 
     if (val === 25 && multiplier === 3) {
       alert("Le Triple Bull n'existe pas !");
@@ -131,22 +150,20 @@ function MorpionLogic() {
     const newMarks = JSON.parse(JSON.stringify(marks));
     const newOwners = { ...owners };
 
-    if (val !== 0) {
-      // Si la case n'appartient à personne
-      if (newOwners[val] === null) {
-        const currentM = newMarks[val][currentPlayerIndex];
+    if (index !== null) {
+      if (newOwners[index] === null) {
+        const currentM = newMarks[index][currentPlayerIndex];
         const marksToAdd = multiplier;
         
         if (currentM < 3) {
           const newM = Math.min(3, currentM + marksToAdd);
-          newMarks[val][currentPlayerIndex] = newM;
+          newMarks[index][currentPlayerIndex] = newM;
           
           if (newM === 3) {
-            newOwners[val] = currentPlayerIndex;
+            newOwners[index] = currentPlayerIndex;
             didCapture = true;
             announcement = `Case ${val === 25 ? 'Bull' : val} validée par ${players[currentPlayerIndex].name} !`;
             
-            // On check la victoire après la capture
             if (checkWin(newOwners, currentPlayerIndex)) {
               didWin = true;
             } else if (checkDraw(newOwners)) {
@@ -178,7 +195,7 @@ function MorpionLogic() {
     }
 
     if (newCount >= 3) {
-      if (!didCapture) announcement = ""; // Si rien capturé, pas d'annonce spéciale
+      if (!didCapture) announcement = ""; 
       if (announcement) announce(announcement);
 
       setTimeout(() => {
@@ -201,6 +218,10 @@ function MorpionLogic() {
     if (count === 3) return "Ⓧ";
     return "";
   };
+
+  if (!isMounted) {
+    return <div className="min-h-screen flex items-center justify-center text-white font-bold animate-pulse">Chargement de la grille...</div>;
+  }
 
   const currentPlayer = players[currentPlayerIndex];
   const currentTheme = PLAYER_COLORS[currentPlayerIndex];
@@ -282,41 +303,38 @@ function MorpionLogic() {
          </div>
       </div>
 
-      {/* GRILLE DU MORPION (3x3) JOUABLE DIRECTEMENT */}
+      {/* GRILLE DU MORPION (NOMBRES ALÉATOIRES) */}
       <div className="w-full aspect-square max-w-sm bg-gray-800 rounded-3xl p-3 mb-4 shadow-2xl border border-gray-700 grid grid-cols-3 gap-2">
-         {TARGETS.map(target => {
-            const ownerId = owners[target];
+         {gridTargets.map((target, index) => {
+            const ownerId = owners[index];
             const isOwned = ownerId !== null;
             const ownerTheme = isOwned ? PLAYER_COLORS[ownerId] : null;
             
             return (
               <button 
-                key={target}
-                onClick={() => handleScore(target)}
-                // Si la case n'est pas possédée, elle s'éclaire légèrement à la couleur du joueur actuel lors du survol/clic
-                className={`relative flex flex-col items-center justify-center rounded-2xl border-2 transition-all duration-300 overflow-hidden active:scale-95 focus:outline-none 
-                ${isOwned ? `${ownerTheme?.headBg}${ownerTheme?.border}` : `bg-gray-900/50 border-gray-700/50 hover:border-gray-500`}`}
+                key={index}
+                onClick={() => handleScore(index)}
+                disabled={isOwned} 
+                className={`relative flex flex-col items-center justify-center rounded-2xl border-2 transition-all duration-300 overflow-hidden focus:outline-none 
+                ${isOwned ? `${ownerTheme?.headBg}${ownerTheme?.border} cursor-default` : `bg-gray-900/50 border-gray-700/50 hover:border-gray-500 active:scale-95`}`}
               >
-                {/* Le numéro de la cible au centre (plus discret si la case est prise) */}
-                <div className={`absolute font-black uppercase z-10 transition-all duration-500 ${isOwned ? 'opacity-20 text-4xl' : 'text-5xl text-gray-400'}`}>
+                <div className={`absolute font-black uppercase z-10 transition-all duration-500 ${isOwned ? 'opacity-20 text-4xl' : 'text-5xl text-gray-300 drop-shadow-md'}`}>
                   {target === 25 ? 'B' : target}
                 </div>
                 
-                {/* Le gros X ou O si la case est prise */}
                 {isOwned && (
                   <div className={`z-20 text-7xl font-black drop-shadow-lg ${ownerTheme?.text} animate-in zoom-in duration-300`}>
                     {ownerTheme?.symbol}
                   </div>
                 )}
 
-                {/* Les petits indicateurs de progression si la case est libre */}
-                {!isOwned && (
+                {!isOwned && marks[index] && (
                   <>
                     <div className="absolute top-2 left-2 text-blue-400 font-bold text-sm">
-                      {renderCricketMark(marks[target][0])}
+                      {renderCricketMark(marks[index][0])}
                     </div>
                     <div className="absolute bottom-2 right-2 text-red-400 font-bold text-sm">
-                      {renderCricketMark(marks[target][1])}
+                      {renderCricketMark(marks[index][1])}
                     </div>
                   </>
                 )}
@@ -325,15 +343,15 @@ function MorpionLogic() {
          })}
       </div>
       
-      {/* CLAVIER REDUIT (MULTIPLICATEURS + MISS) */}
+      {/* CLAVIER RÉDUIT (Uniquement les modificateurs et le bouton rater) */}
       <div className="w-full mb-2 px-1">
         <div className="flex gap-2 w-full mb-3">
           <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-4 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
           <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-4 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
         </div>
         
-        <button onClick={() => handleScore(0)} className="w-full bg-gray-900 border border-gray-600 py-4 rounded-2xl text-xl font-bold active:bg-gray-800 text-gray-400 shadow-sm active:scale-95 transition-all">
-          Miss (0)
+        <button onClick={() => handleScore(null)} className="w-full bg-gray-900 border border-gray-600 py-4 rounded-2xl text-xl font-bold active:bg-gray-800 text-gray-400 shadow-sm active:scale-95 transition-all">
+          Fléchette ratée (0)
         </button>
       </div>
     </div>

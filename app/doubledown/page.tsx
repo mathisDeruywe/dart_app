@@ -25,7 +25,7 @@ function DoubleDownLogic() {
     Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
       name: customNames[i] || `Joueur ${i + 1}`,
-      score: 40, // Au Double Down, on commence avec 40 points
+      score: 40,
     }))
   );
   
@@ -33,7 +33,7 @@ function DoubleDownLogic() {
   const [dartsThrown, setDartsThrown] = useState(0);
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
-  const [turnScore, setTurnScore] = useState(0); // Score accumulé pendant les 3 fléchettes
+  const [turnScore, setTurnScore] = useState(0);
   
   const currentPlayerIndex = currentTurn % numPlayers;
   const currentRound = Math.floor(currentTurn / numPlayers);
@@ -102,7 +102,6 @@ function DoubleDownLogic() {
     let isValid = false;
     let pointsEarned = 0;
 
-    // Logique de validation selon la cible en cours
     if (currentTarget === 'Double') {
       if (multiplier === 2 && val !== 0) {
         isValid = true;
@@ -119,7 +118,6 @@ function DoubleDownLogic() {
         pointsEarned = 25 * multiplier; // Simple (25) ou Double (50)
       }
     } else {
-      // Cible numérique standard (ex: '15')
       if (val.toString() === currentTarget) {
         isValid = true;
         pointsEarned = val * multiplier;
@@ -143,7 +141,6 @@ function DoubleDownLogic() {
       let finalScore = 0;
       let isHalved = false;
       
-      // Si 0 point marqué, le score total est divisé par deux
       if (newTurnScore === 0) {
         finalScore = Math.floor(p.score / 2);
         isHalved = true;
@@ -154,7 +151,6 @@ function DoubleDownLogic() {
       p.score = finalScore;
       setPlayers(newPlayers);
       
-      // Vérification de la fin de partie pour l'annonce
       const nextTurn = currentTurn + 1;
       const nextRound = Math.floor(nextTurn / numPlayers);
       const gameIsEnding = nextRound >= TARGETS.length;
@@ -187,6 +183,10 @@ function DoubleDownLogic() {
   const currentTheme = PLAYER_COLORS[currentPlayerIndex % PLAYER_COLORS.length] || PLAYER_COLORS[0];
   const currentTarget = TARGETS[currentRound];
   const isInDanger = dartsThrown > 0 && turnScore === 0;
+
+  // Logique d'affichage du clavier
+  const isAnyDoubleOrTriple = currentTarget === 'Double' || currentTarget === 'Triple';
+  const numericTarget = currentTarget === 'Bull' ? 25 : parseInt(currentTarget);
 
   return (
     <div className="w-full max-w-md flex flex-col items-center relative pb-6 overflow-hidden">
@@ -271,7 +271,6 @@ function DoubleDownLogic() {
           {turnScore > 0 && dartsThrown < 3 && <span className="text-green-400 font-bold bg-green-900/60 px-3 py-0.5 rounded-full uppercase tracking-wider text-xs border border-green-500/50 shadow-inner">✅ Sécurisé !</span>}
         </div>
         
-        {/* Affichage de la Cible Actuelle */}
         <div className="flex flex-col items-center mb-6 relative z-10">
            <span className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Cible à viser</span>
            <div className={`text-6xl font-black text-white drop-shadow-lg uppercase`}>
@@ -279,7 +278,6 @@ function DoubleDownLogic() {
            </div>
         </div>
         
-        {/* Fléchettes et Historique */}
         <div className="flex justify-center gap-4 w-full mx-auto relative z-10">
            {[0, 1, 2].map((idx) => {
              const isHitStr = currentThrows[idx]?.includes('✔');
@@ -294,7 +292,6 @@ function DoubleDownLogic() {
            })}
         </div>
         
-        {/* Score en direct de ce tour */}
         <div className="text-center mt-4">
            <div className="text-4xl font-black text-white">{currentPlayer.score + turnScore}</div>
            <div className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Total actuel</div>
@@ -316,23 +313,45 @@ function DoubleDownLogic() {
         </div>
       )}
       
-      {/* CLAVIER DE JEU */}
+      {/* CLAVIER INTELLIGENT */}
       <div className="w-full mb-2 px-1">
         <div className="flex gap-2 w-full mb-3">
-          <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105 shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
-          <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105 shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
+          <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
+          <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
         </div>
         
-        <div className="grid grid-cols-4 gap-2 w-full">
-           {NUMBERS.map((target) => (
-             <button key={target} onClick={() => handleScore(target)} className={`py-3 rounded-xl text-xl font-bold active:scale-95 transition-colors duration-300 text-white shadow-sm border border-gray-600/50 ${currentTheme.btn}`}>
-               {target === 25 ? "25 (B)" : target}
+        {isAnyDoubleOrTriple ? (
+          <>
+            <div className="text-center mb-2 text-xs font-bold text-yellow-400 animate-pulse">
+              Active le modificateur et sélectionne le numéro !
+            </div>
+            <div className="grid grid-cols-4 gap-2 w-full">
+               {NUMBERS.map((target) => (
+                 <button key={target} onClick={() => handleScore(target)} className={`py-3 rounded-xl text-xl font-bold active:scale-95 transition-colors duration-300 text-white shadow-sm border border-gray-600/50 ${currentTheme.btn}`}>
+                   {target === 25 ? "25 (B)" : target}
+                 </button>
+               ))}
+               <button onClick={() => handleScore(0)} className="bg-gray-900 border border-gray-600 py-3 rounded-xl text-lg font-bold active:bg-gray-800 text-gray-400 shadow-sm col-span-3">
+                 Miss (0)
+               </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex gap-3 w-full">
+             <button 
+               onClick={() => handleScore(numericTarget)} 
+               className={`flex-[2] py-6 rounded-2xl text-2xl font-black active:scale-95 transition-all text-white shadow-xl border border-white/10 ${currentTheme.btn}`}
+             >
+               ✅ TOUCHÉ ({currentTarget})
              </button>
-           ))}
-           <button onClick={() => handleScore(0)} className="bg-gray-900 border border-gray-600 py-3 rounded-xl text-lg font-bold active:bg-gray-800 text-gray-400 shadow-sm col-span-3">
-             Miss (0)
-           </button>
-        </div>
+             <button 
+               onClick={() => handleScore(0)} 
+               className="flex-1 bg-gray-900 border-2 border-gray-600 py-6 rounded-2xl text-xl font-bold active:bg-gray-800 text-gray-400 shadow-sm active:scale-95 transition-all"
+             >
+               ❌ RATÉ
+             </button>
+          </div>
+        )}
       </div>
     </div>
   );

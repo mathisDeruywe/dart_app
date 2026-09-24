@@ -13,9 +13,7 @@ const PLAYER_COLORS = [
 // Le parcours fait le tour de la cible physiquement
 const SEQUENCE = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 25];
 // Les cibles qui font office de "haies" et qui nécessitent un Triple
-const HURDLES = [13, 17, 8];
-// Le clavier complet
-const NUMBERS = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 25];
+const HURDLES = [13, 17, 8, 5];
 
 type Player = { id: number; name: string; targetIndex: number };
 
@@ -66,7 +64,7 @@ function SteeplechaseLogic() {
     window.speechSynthesis.cancel();
     const msg = new SpeechSynthesisUtterance(text);
     msg.lang = 'fr-FR'; 
-    msg.rate = 1; 
+    msg.rate = 1.1; 
     if (selectedVoiceURI) {
       const chosenVoice = voices.find(v => v.voiceURI === selectedVoiceURI);
       if (chosenVoice) msg.voice = chosenVoice;
@@ -87,10 +85,10 @@ function SteeplechaseLogic() {
     setWinnerId(null);
   };
 
-  const handleScore = (val: number) => {
+  const handleScore = (val: number, activeMult: number = multiplier) => {
     if (winnerId !== null || dartsThrown >= 3) return;
 
-    if (val === 25 && multiplier === 3) {
+    if (val === 25 && activeMult === 3) {
       alert("Le Triple Bull n'existe pas !");
       setMultiplier(1);
       return;
@@ -102,13 +100,11 @@ function SteeplechaseLogic() {
     
     let isHit = false;
 
-    // Logique Steeplechase : on avance si on touche le bon chiffre.
-    // Si c'est une haie (13, 17, 8), il FAUT faire un Triple.
     if (val === targetToHit) {
       if (isHurdle) {
-        isHit = (multiplier === 3);
+        isHit = (activeMult === 3);
       } else {
-        isHit = true; // Pour une case normale, simple, double ou triple, ça passe !
+        isHit = true; 
       }
     }
 
@@ -120,7 +116,7 @@ function SteeplechaseLogic() {
       if (newIndex >= SEQUENCE.length) didWin = true;
     }
 
-    const hitStr = val === 0 ? '0' : (multiplier === 3 ? `T${val}` : multiplier === 2 ? `D${val}` : `${val}`);
+    const hitStr = val === 0 ? '0' : (activeMult === 3 ? `T${val}` : activeMult === 2 ? `D${val}` : `${val}`);
     setCurrentThrows((prev) => [...prev, isHit ? `${hitStr} ✔` : hitStr]);
 
     const newPlayers = JSON.parse(JSON.stringify(players));
@@ -143,7 +139,6 @@ function SteeplechaseLogic() {
       const nextPlayerTarget = SEQUENCE[newPlayers[nextPlayerIdx].targetIndex];
       const nextIsHurdle = HURDLES.includes(nextPlayerTarget);
       
-      // Annonce dynamique du prochain objectif
       let textAnnounce = `Au tour de ${newPlayers[nextPlayerIdx].name}. `;
       if (nextPlayerTarget === 25) textAnnounce += "Objectif : Bull";
       else if (nextIsHurdle) textAnnounce += `Objectif : Triple ${nextPlayerTarget}`;
@@ -156,6 +151,17 @@ function SteeplechaseLogic() {
         setDartsThrown(0);
         setCurrentThrows([]);
       }, 1200);
+    } else {
+      // Annonce de la nouvelle cible directement pendant le tour
+      if (isHit) {
+        const nextTarget = SEQUENCE[newIndex];
+        const nextIsHurdle = HURDLES.includes(nextTarget);
+        let textAnnounce = "Touché ! ";
+        if (nextTarget === 25) textAnnounce += "Objectif Bull";
+        else if (nextIsHurdle) textAnnounce += `Objectif Triple ${nextTarget}`;
+        else textAnnounce += `Objectif ${nextTarget}`;
+        announce(textAnnounce);
+      }
     }
   };
 
@@ -278,21 +284,27 @@ function SteeplechaseLogic() {
         </div>
       )}
       
-      {/* CLAVIER DE JEU */}
+      {/* NOUVEAU CLAVIER SIMPLIFIÉ */}
       <div className="w-full mb-2 px-1">
+        
+        {/* On conserve les multiplicateurs au cas où le joueur veut préciser un double sur une cible normale */}
         <div className="flex gap-2 w-full mb-3">
-          <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105 shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
-          <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105 shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
+          <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
+          <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
         </div>
         
-        <div className="grid grid-cols-4 gap-2 w-full">
-           {NUMBERS.map((target) => (
-             <button key={target} onClick={() => handleScore(target)} className={`py-3 rounded-xl text-xl font-bold active:scale-95 transition-colors duration-300 text-white shadow-sm border border-gray-600/50 ${currentTheme.btn}`}>
-               {target === 25 ? "25 (B)" : target}
-             </button>
-           ))}
-           <button onClick={() => handleScore(0)} className="bg-gray-900 border border-gray-600 py-3 rounded-xl text-lg font-bold active:bg-gray-800 text-gray-400 shadow-sm col-span-3">
-             Miss (0)
+        <div className="flex gap-3 w-full">
+           <button 
+             onClick={() => handleScore(currentTarget, isCurrentHurdle ? 3 : multiplier)} 
+             className={`flex-[2] py-6 rounded-2xl text-2xl font-black active:scale-95 transition-all text-white shadow-xl border border-white/10 ${currentTheme.btn}`}
+           >
+             ✅ TOUCHÉ ({isCurrentHurdle ? `T${currentTarget}` : (currentTarget === 25 ? "BULL" : currentTarget)})
+           </button>
+           <button 
+             onClick={() => handleScore(0, 1)} 
+             className="flex-1 bg-gray-900 border-2 border-gray-600 py-6 rounded-2xl text-xl font-bold active:bg-gray-800 text-gray-400 shadow-sm active:scale-95 transition-all"
+           >
+             ❌ RATÉ
            </button>
         </div>
       </div>

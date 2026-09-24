@@ -34,7 +34,6 @@ function ClockLogic() {
   
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [dartsThrown, setDartsThrown] = useState(0);
-  const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
   const [winnerId, setWinnerId] = useState<number | null>(null);
@@ -74,6 +73,13 @@ function ClockLogic() {
   };
   // ==========================================
 
+  const getTargetAnnounce = (target: number) => {
+    const targetName = target === 25 ? 'Centre' : target.toString();
+    if (clockMode === 'double') return `Double ${targetName}`;
+    if (clockMode === 'triple') return target === 25 ? `Double Centre` : `Triple ${targetName}`;
+    return targetName;
+  };
+
   const resetGame = () => {
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
@@ -82,7 +88,6 @@ function ClockLogic() {
     })));
     setCurrentPlayerIndex(0);
     setDartsThrown(0);
-    setMultiplier(1);
     setCurrentThrows([]);
     setWinnerId(null);
   };
@@ -90,25 +95,17 @@ function ClockLogic() {
   const handleScore = (val: number) => {
     if (winnerId !== null || dartsThrown >= 3) return;
 
-    if (val === 25 && multiplier === 3) {
-      alert("Le Triple Bull (3x25) n'existe pas !");
-      setMultiplier(1);
-      return;
-    }
-
     const currentPlayer = players[currentPlayerIndex];
     const targetToHit = SEQUENCE[currentPlayer.targetIndex];
+    
     let isHit = false;
+    let usedMult = 1;
 
-    if (val === targetToHit) {
-      if (clockMode === 'normal') {
-        isHit = true;
-      } else if (clockMode === 'double') {
-        isHit = (multiplier === 2);
-      } else if (clockMode === 'triple') {
-        if (val === 25) isHit = (multiplier === 2);
-        else isHit = (multiplier === 3);
-      }
+    // Détermination automatique du multiplicateur et validation du hit
+    if (val !== 0 && val === targetToHit) {
+      isHit = true;
+      if (clockMode === 'double') usedMult = 2;
+      else if (clockMode === 'triple') usedMult = val === 25 ? 2 : 3;
     }
 
     let didWin = false;
@@ -119,14 +116,12 @@ function ClockLogic() {
       if (newIndex >= SEQUENCE.length) didWin = true;
     }
 
-    const hitStr = val === 0 ? '0' : (multiplier === 3 ? `T${val}` : multiplier === 2 ? `D${val}` : `${val}`);
+    const hitStr = val === 0 ? '0' : (usedMult === 3 ? `T${val}` : usedMult === 2 ? `D${val}` : `${val}`);
     setCurrentThrows((prev) => [...prev, isHit ? `${hitStr} ✔` : hitStr]);
 
     const newPlayers = JSON.parse(JSON.stringify(players));
     newPlayers[currentPlayerIndex].targetIndex = newIndex;
-    
     setPlayers(newPlayers);
-    setMultiplier(1);
 
     const newCount = dartsThrown + 1;
     setDartsThrown(newCount);
@@ -140,9 +135,8 @@ function ClockLogic() {
     if (newCount >= 3) {
       const nextPlayerIdx = (currentPlayerIndex + 1) % players.length;
       const nextTarget = SEQUENCE[newPlayers[nextPlayerIdx].targetIndex];
-      const targetName = nextTarget === 25 ? 'Centre' : nextTarget;
       
-      announce(`Au tour de ${newPlayers[nextPlayerIdx].name}. Vise le ${targetName}`);
+      announce(`Au tour de ${newPlayers[nextPlayerIdx].name}. Objectif : ${getTargetAnnounce(nextTarget)}`);
       
       setTimeout(() => {
         setCurrentPlayerIndex(nextPlayerIdx);
@@ -152,19 +146,17 @@ function ClockLogic() {
     } else {
       if (isHit) {
         const nextTarget = SEQUENCE[newIndex];
-        const targetName = nextTarget === 25 ? 'Centre' : nextTarget;
-        announce(`Vise le ${targetName}`);
+        announce(`Touché ! Objectif : ${getTargetAnnounce(nextTarget)}`);
       }
     }
-  };
-
-  const toggleMultiplier = (mod: 2 | 3) => {
-    setMultiplier((prev) => (prev === mod ? 1 : mod));
   };
 
   const currentPlayer = players[currentPlayerIndex];
   const currentTheme = PLAYER_COLORS[currentPlayerIndex % PLAYER_COLORS.length];
   const targetNumber = SEQUENCE[currentPlayer.targetIndex];
+
+  // Le préfixe D ou T affiché à côté du gros chiffre pour rappeler le mode
+  const modePrefix = clockMode === 'double' ? 'D' : clockMode === 'triple' ? (targetNumber === 25 ? 'D' : 'T') : '';
 
   return (
     <div className="w-full max-w-md flex flex-col items-center relative pb-6 overflow-hidden">
@@ -234,7 +226,8 @@ function ClockLogic() {
         
         <div className="flex flex-col items-center mb-6 relative z-10">
            <span className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Cible à viser</span>
-           <div className="text-7xl font-black text-white drop-shadow-lg">
+           <div className="text-7xl font-black text-white drop-shadow-lg flex items-center justify-center gap-2">
+             {modePrefix && <span className="text-4xl text-gray-400">{modePrefix}</span>}
              {targetNumber === 25 ? 'BULL' : targetNumber}
            </div>
            <span className="text-xs font-bold text-gray-500 mt-2">
@@ -265,30 +258,21 @@ function ClockLogic() {
             return (
               <div key={p.id} className="flex-1 bg-gray-800/80 rounded-2xl p-2 text-center border border-gray-700/50 relative">
                 <div className="text-[11px] text-gray-400 font-bold truncate uppercase mt-1">{p.name}</div>
-                <div className="text-lg font-black text-gray-300 mt-1">Cible : <span className="text-white">{SEQUENCE[p.targetIndex] === 25 ? 'BULL' : SEQUENCE[p.targetIndex]}</span></div>
+                <div className="text-lg font-black text-gray-300 mt-1">Cible : <span className="text-white">{modePrefix && `${modePrefix}`}{SEQUENCE[p.targetIndex] === 25 ? 'BULL' : SEQUENCE[p.targetIndex]}</span></div>
               </div>
             );
           })}
         </div>
       )}
       
-      {/* NOUVEAU CLAVIER SIMPLIFIÉ */}
+      {/* NOUVEAU CLAVIER SIMPLIFIÉ (Automatique) */}
       <div className="w-full mb-2 px-1">
-        
-        {/* Ligne des multiplicateurs (utile pour les modes Double et Triple) */}
-        {(clockMode === 'double' || clockMode === 'triple') && (
-          <div className="flex gap-2 w-full mb-3">
-            <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
-            <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
-          </div>
-        )}
-
         <div className="flex gap-3 w-full">
            <button 
              onClick={() => handleScore(targetNumber)} 
              className={`flex-[2] py-6 rounded-2xl text-2xl font-black active:scale-95 transition-all text-white shadow-xl border border-white/10 ${currentTheme.btn}`}
            >
-             ✅ {targetNumber === 25 ? "CENTRE" : targetNumber}
+             ✅ TOUCHÉ ({modePrefix && `${modePrefix}`}{targetNumber === 25 ? 'BULL' : targetNumber})
            </button>
            <button 
              onClick={() => handleScore(0)} 
