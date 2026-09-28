@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { UndoThrowButton, useThrowUndo } from '../throw-undo';
 
 const PLAYER_COLORS = [
   { text: 'text-blue-400', fill: 'bg-blue-500', btn: 'bg-blue-600 active:bg-blue-500', border: 'border-blue-500/30', headBg: 'bg-blue-900/40' },
@@ -33,6 +34,7 @@ function CenturyLogic() {
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
   const [turnStartScore, setTurnStartScore] = useState(0);
+  const { canUndo, clearUndo, recordUndo, scheduleTransition, undo } = useThrowUndo();
   
   // ==========================================
   // SYSTÈME AUDIO & GESTION DES VOIX
@@ -102,6 +104,7 @@ function CenturyLogic() {
   const winner = isGameOver ? sortedPlayersByClosest[0] : null;
 
   const resetGame = () => {
+    clearUndo();
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
       name: customNames[i] || `Joueur ${i + 1}`,
@@ -122,6 +125,15 @@ function CenturyLogic() {
       setMultiplier(1);
       return;
     }
+
+    recordUndo(() => {
+      setPlayers(players);
+      setCurrentTurn(currentTurn);
+      setDartsThrown(dartsThrown);
+      setMultiplier(multiplier);
+      setCurrentThrows(currentThrows);
+      setTurnStartScore(turnStartScore);
+    });
 
     const actualStartScore = dartsThrown === 0 ? players[currentPlayerIndex].score : turnStartScore;
     if (dartsThrown === 0) setTurnStartScore(actualStartScore);
@@ -169,7 +181,7 @@ function CenturyLogic() {
         }
       }
 
-      setTimeout(() => {
+      scheduleTransition(() => {
         setCurrentTurn(prev => prev + 1);
         setDartsThrown(0);
         setCurrentThrows([]);
@@ -231,6 +243,7 @@ function CenturyLogic() {
             </div>
             
             <div className="flex flex-col gap-3 relative z-10">
+              <UndoThrowButton canUndo={canUndo} onUndo={undo} />
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>Rejouer</button>
               <Link href="/" className="w-full py-4 rounded-xl text-xl font-bold bg-gray-800 text-gray-300 shadow-lg active:scale-95 transition-transform border border-gray-700 block text-center">Menu Principal</Link>
             </div>
@@ -309,6 +322,10 @@ function CenturyLogic() {
       <div className="flex gap-2 w-full mb-3 px-1">
         <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105' : 'bg-gray-800 text-gray-400'}`}>Double</button>
         <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105' : 'bg-gray-800 text-gray-400'}`}>Triple</button>
+      </div>
+
+      <div className="w-full mb-3 px-1">
+        <UndoThrowButton canUndo={canUndo} onUndo={undo} />
       </div>
 
       <div className="grid grid-cols-4 gap-2 w-full mb-4 px-1">

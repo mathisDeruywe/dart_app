@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { UndoThrowButton, useThrowUndo } from '../throw-undo';
 
 const TARGETS = [20, 19, 18, 17, 16, 15, 25];
 
@@ -37,6 +38,7 @@ function CricketLogic() {
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
   const [turnStartScore, setTurnStartScore] = useState(0);
+  const { canUndo, clearUndo, recordUndo, scheduleTransition, undo } = useThrowUndo();
 
   // ==========================================
   // SYSTÈME AUDIO & GESTION DES VOIX
@@ -90,6 +92,7 @@ function CricketLogic() {
   }) || null;
 
   const resetGame = () => {
+    clearUndo();
     const initialMarks = TARGETS.reduce((acc, target) => ({ ...acc, [target]: 0 }), {});
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
@@ -112,6 +115,15 @@ function CricketLogic() {
       setMultiplier(1);
       return;
     }
+
+    recordUndo(() => {
+      setPlayers(players);
+      setCurrentPlayerIndex(currentPlayerIndex);
+      setDartsThrown(dartsThrown);
+      setMultiplier(multiplier);
+      setCurrentThrows(currentThrows);
+      setTurnStartScore(turnStartScore);
+    });
 
     const actualStartScore = dartsThrown === 0 ? players[currentPlayerIndex].score : turnStartScore;
     if (dartsThrown === 0) setTurnStartScore(actualStartScore);
@@ -180,7 +192,7 @@ function CricketLogic() {
       
       if (endAnnouncement) announce(endAnnouncement);
       
-      setTimeout(() => {
+      scheduleTransition(() => {
         setCurrentPlayerIndex((i) => (i + 1) % players.length);
         setDartsThrown(0);
         setCurrentThrows([]);
@@ -217,6 +229,7 @@ function CricketLogic() {
             <div className="text-2xl font-bold text-gray-200 mb-8 relative z-10">Avec {winner.score} pts</div>
             
             <div className="flex flex-col gap-4 relative z-10">
+              <UndoThrowButton canUndo={canUndo} onUndo={undo} />
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>
                 Rejouer
               </button>
@@ -318,6 +331,9 @@ function CricketLogic() {
 
       {/* CLAVIER DE JEU */}
       <div className="w-full mb-2 px-1">
+        <div className="mb-3">
+          <UndoThrowButton canUndo={canUndo} onUndo={undo} />
+        </div>
         <div className="flex gap-2 w-full mb-3">
           <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105 shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
           <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105 shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>

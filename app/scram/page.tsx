@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { UndoThrowButton, useThrowUndo } from '../throw-undo';
 
 const TARGETS = [20, 19, 18, 17, 16, 15, 25];
 
@@ -37,6 +38,7 @@ function ScramLogic() {
   const [boardMarks, setBoardMarks] = useState<Record<number, number>>({ 20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 25: 0 });
   const [isGameOver, setIsGameOver] = useState(false);
   const [turnStartScore, setTurnStartScore] = useState(0);
+  const { canUndo, clearUndo, recordUndo, scheduleTransition, undo } = useThrowUndo();
 
   // ==========================================
   // SYSTÈME AUDIO & GESTION DES VOIX
@@ -91,6 +93,7 @@ function ScramLogic() {
   const winner = isGameOver ? sortedPlayers[0] : null;
 
   const resetGame = () => {
+    clearUndo();
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
       name: customNames[i] || `Joueur ${i + 1}`,
@@ -114,6 +117,18 @@ function ScramLogic() {
       setMultiplier(1);
       return;
     }
+
+    recordUndo(() => {
+      setPlayers(players);
+      setInning(inning);
+      setTurnInInning(turnInInning);
+      setDartsThrown(dartsThrown);
+      setMultiplier(multiplier);
+      setCurrentThrows(currentThrows);
+      setBoardMarks(boardMarks);
+      setIsGameOver(isGameOver);
+      setTurnStartScore(turnStartScore);
+    });
 
     const actualStartScore = dartsThrown === 0 ? players[activePlayerIndex].score : turnStartScore;
     if (dartsThrown === 0) setTurnStartScore(actualStartScore);
@@ -175,9 +190,9 @@ function ScramLogic() {
 
     if (earlyWin) {
       announce(`Dépassé ! Victoire de ${newPlayers[activePlayerIndex].name} !`);
-      setTimeout(() => {
+      scheduleTransition(() => {
         setIsGameOver(true);
-      }, 1200);
+      }, 1200, true);
       return; // On arrête l'exécution ici, pas besoin de vérifier le reste
     }
     // ==================================================
@@ -193,7 +208,7 @@ function ScramLogic() {
         announce(endAnnounce);
       }
 
-      setTimeout(() => {
+      scheduleTransition(() => {
         if (inning + 1 >= numPlayers) {
           setIsGameOver(true);
         } else {
@@ -215,7 +230,7 @@ function ScramLogic() {
       
       if (endAnnouncement) announce(endAnnouncement);
 
-      setTimeout(() => {
+      scheduleTransition(() => {
         setTurnInInning(t => t + 1);
         setDartsThrown(0);
         setCurrentThrows([]);
@@ -273,6 +288,7 @@ function ScramLogic() {
             </div>
             
             <div className="flex flex-col gap-3 relative z-10">
+              <UndoThrowButton canUndo={canUndo} onUndo={undo} />
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>Rejouer</button>
               <Link href="/" className="w-full py-4 rounded-xl text-xl font-bold bg-gray-800 text-gray-300 shadow-lg active:scale-95 transition-transform border border-gray-700 block text-center">Menu Principal</Link>
             </div>
@@ -390,6 +406,10 @@ function ScramLogic() {
       <div className="flex gap-2 w-full mb-2 px-1">
         <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105 shadow-orange-900/50' : 'bg-gray-800 text-gray-400'}`}>Double</button>
         <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105 shadow-red-900/50' : 'bg-gray-800 text-gray-400'}`}>Triple</button>
+      </div>
+
+      <div className="w-full mb-3 px-1">
+        <UndoThrowButton canUndo={canUndo} onUndo={undo} />
       </div>
 
       <div className="grid grid-cols-4 gap-2 w-full px-1">

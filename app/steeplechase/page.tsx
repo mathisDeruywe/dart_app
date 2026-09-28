@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { UndoThrowButton, useThrowUndo } from '../throw-undo';
 
 const PLAYER_COLORS = [
   { text: 'text-blue-400', fill: 'bg-blue-500', btn: 'bg-blue-600 active:bg-blue-500', border: 'border-blue-500/30', headBg: 'bg-blue-900/40' },
@@ -37,6 +38,7 @@ function SteeplechaseLogic() {
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
   const [winnerId, setWinnerId] = useState<number | null>(null);
+  const { canUndo, clearUndo, recordUndo, scheduleTransition, undo } = useThrowUndo();
   const winner = winnerId !== null ? players[winnerId] : null;
 
   // ==========================================
@@ -73,6 +75,7 @@ function SteeplechaseLogic() {
   };
 
   const resetGame = () => {
+    clearUndo();
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
       name: customNames[i] || `Joueur ${i + 1}`,
@@ -93,6 +96,15 @@ function SteeplechaseLogic() {
       setMultiplier(1);
       return;
     }
+
+    recordUndo(() => {
+      setPlayers(players);
+      setCurrentPlayerIndex(currentPlayerIndex);
+      setDartsThrown(dartsThrown);
+      setMultiplier(multiplier);
+      setCurrentThrows(currentThrows);
+      setWinnerId(winnerId);
+    });
 
     const currentPlayer = players[currentPlayerIndex];
     const targetToHit = SEQUENCE[currentPlayer.targetIndex];
@@ -146,7 +158,7 @@ function SteeplechaseLogic() {
 
       announce(textAnnounce);
 
-      setTimeout(() => {
+      scheduleTransition(() => {
         setCurrentPlayerIndex(nextPlayerIdx);
         setDartsThrown(0);
         setCurrentThrows([]);
@@ -187,6 +199,7 @@ function SteeplechaseLogic() {
             <h2 className={`text-3xl font-bold mb-8 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].text} relative z-10`}>{winner.name}</h2>
             
             <div className="flex flex-col gap-4 relative z-10">
+              <UndoThrowButton canUndo={canUndo} onUndo={undo} />
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>
                 Rejouer
               </button>
@@ -291,6 +304,10 @@ function SteeplechaseLogic() {
         <div className="flex gap-2 w-full mb-3">
           <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
           <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
+        </div>
+
+        <div className="mb-3">
+          <UndoThrowButton canUndo={canUndo} onUndo={undo} />
         </div>
         
         <div className="flex gap-3 w-full">

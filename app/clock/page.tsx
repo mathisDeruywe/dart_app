@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { UndoThrowButton, useThrowUndo } from '../throw-undo';
 
 // Les couleurs classiques pour différencier les joueurs
 const PLAYER_COLORS = [
@@ -37,6 +38,7 @@ function ClockLogic() {
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
   const [winnerId, setWinnerId] = useState<number | null>(null);
+  const { canUndo, clearUndo, recordUndo, scheduleTransition, undo } = useThrowUndo();
   const winner = winnerId !== null ? players[winnerId] : null;
 
   // ==========================================
@@ -81,6 +83,7 @@ function ClockLogic() {
   };
 
   const resetGame = () => {
+    clearUndo();
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
       name: customNames[i] || `Joueur ${i + 1}`,
@@ -94,6 +97,14 @@ function ClockLogic() {
 
   const handleScore = (val: number) => {
     if (winnerId !== null || dartsThrown >= 3) return;
+
+    recordUndo(() => {
+      setPlayers(players);
+      setCurrentPlayerIndex(currentPlayerIndex);
+      setDartsThrown(dartsThrown);
+      setCurrentThrows(currentThrows);
+      setWinnerId(winnerId);
+    });
 
     const currentPlayer = players[currentPlayerIndex];
     const targetToHit = SEQUENCE[currentPlayer.targetIndex];
@@ -138,7 +149,7 @@ function ClockLogic() {
       
       announce(`Au tour de ${newPlayers[nextPlayerIdx].name}. Objectif : ${getTargetAnnounce(nextTarget)}`);
       
-      setTimeout(() => {
+      scheduleTransition(() => {
         setCurrentPlayerIndex(nextPlayerIdx);
         setDartsThrown(0);
         setCurrentThrows([]);
@@ -170,6 +181,7 @@ function ClockLogic() {
             <h2 className={`text-3xl font-bold mb-8 ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].text} relative z-10`}>{winner.name}</h2>
             
             <div className="flex flex-col gap-4 relative z-10">
+              <UndoThrowButton canUndo={canUndo} onUndo={undo} />
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>
                 Rejouer
               </button>
@@ -267,6 +279,9 @@ function ClockLogic() {
       
       {/* NOUVEAU CLAVIER SIMPLIFIÉ (Automatique) */}
       <div className="w-full mb-2 px-1">
+        <div className="mb-3">
+          <UndoThrowButton canUndo={canUndo} onUndo={undo} />
+        </div>
         <div className="flex gap-3 w-full">
            <button 
              onClick={() => handleScore(targetNumber)} 

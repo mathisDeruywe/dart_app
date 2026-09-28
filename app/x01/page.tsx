@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { UndoThrowButton, useThrowUndo } from '../throw-undo';
 
 const PLAYER_COLORS = [
   { text: 'text-blue-400', fill: 'bg-blue-500', btn: 'bg-blue-600 active:bg-blue-500', border: 'border-blue-500/30', headBg: 'bg-blue-900/40' },
@@ -36,6 +37,7 @@ function X01Logic() {
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   
   const [winnerId, setWinnerId] = useState<number | null>(null);
+  const { canUndo, clearUndo, recordUndo, scheduleTransition, undo } = useThrowUndo();
   const winner = winnerId !== null ? players[winnerId] : null;
 
   // ==========================================
@@ -84,6 +86,7 @@ function X01Logic() {
   // ==========================================
 
   const resetGame = () => {
+    clearUndo();
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
       name: customNames[i] || `Joueur ${i + 1}`,
@@ -105,6 +108,15 @@ function X01Logic() {
       setMultiplier(1);
       return;
     }
+
+    recordUndo(() => {
+      setPlayers(players);
+      setCurrentPlayerIndex(currentPlayerIndex);
+      setDartsThrown(dartsThrown);
+      setMultiplier(multiplier);
+      setCurrentThrows(currentThrows);
+      setWinnerId(winnerId);
+    });
 
     const points = val * multiplier; 
     const currentPlayer = players[currentPlayerIndex];
@@ -165,7 +177,7 @@ function X01Logic() {
         announce("Il te reste " + newScore);
       }
 
-      setTimeout(() => {
+      scheduleTransition(() => {
         setPlayers((currentPlayers) => {
            const updatedPlayers = JSON.parse(JSON.stringify(currentPlayers));
            return updatedPlayers.map((player: Player) => ({ ...player, turnBaseScore: player.score }));
@@ -214,6 +226,7 @@ function X01Logic() {
               </div>
             </div>
             <div className="flex flex-col gap-3 relative z-10">
+              <UndoThrowButton canUndo={canUndo} onUndo={undo} />
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>Rejouer</button>
               <Link href="/" className="w-full py-4 rounded-xl text-xl font-bold bg-gray-800 text-gray-300 shadow-lg active:scale-95 transition-transform border border-gray-700 block text-center">Menu Principal</Link>
             </div>
@@ -282,6 +295,10 @@ function X01Logic() {
       <div className="flex gap-2 w-full mb-3 px-1">
         <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105' : 'bg-gray-800 text-gray-400'}`}>Double</button>
         <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105' : 'bg-gray-800 text-gray-400'}`}>Triple</button>
+      </div>
+
+      <div className="w-full mb-3 px-1">
+        <UndoThrowButton canUndo={canUndo} onUndo={undo} />
       </div>
 
       <div className="grid grid-cols-4 gap-2 w-full mb-4 px-1">

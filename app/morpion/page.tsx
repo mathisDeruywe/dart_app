@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { UndoThrowButton, useThrowUndo } from '../throw-undo';
 
 // P0 = Bleu (X), P1 = Rouge (O)
 const PLAYER_COLORS = [
@@ -76,6 +77,7 @@ function MorpionLogic() {
   
   const [winnerId, setWinnerId] = useState<number | null>(null);
   const [isDraw, setIsDraw] = useState(false);
+  const { canUndo, clearUndo, recordUndo, scheduleTransition, undo } = useThrowUndo();
 
   // ==========================================
   // SYSTÈME AUDIO & GESTION DES VOIX
@@ -111,6 +113,7 @@ function MorpionLogic() {
   };
 
   const resetGame = () => {
+    clearUndo();
     setGridTargets(createRandomTargets());
     setMarks(createInitMarks());
     setOwners(createInitOwners());
@@ -140,6 +143,18 @@ function MorpionLogic() {
       setMultiplier(1);
       return;
     }
+
+    recordUndo(() => {
+      setGridTargets(gridTargets);
+      setMarks(marks);
+      setOwners(owners);
+      setCurrentPlayerIndex(currentPlayerIndex);
+      setDartsThrown(dartsThrown);
+      setMultiplier(multiplier);
+      setCurrentThrows(currentThrows);
+      setWinnerId(winnerId);
+      setIsDraw(isDraw);
+    });
 
     const hitStr = val === 0 ? '0' : (multiplier === 3 ? `T${val}` : multiplier === 2 ? `D${val}` : `${val}`);
     let announcement = "";
@@ -198,7 +213,7 @@ function MorpionLogic() {
       if (!didCapture) announcement = ""; 
       if (announcement) announce(announcement);
 
-      setTimeout(() => {
+      scheduleTransition(() => {
         setCurrentPlayerIndex(prev => prev === 0 ? 1 : 0);
         setDartsThrown(0);
         setCurrentThrows([]);
@@ -248,6 +263,7 @@ function MorpionLogic() {
             )}
             
             <div className="flex flex-col gap-4 relative z-10">
+              <UndoThrowButton canUndo={canUndo} onUndo={undo} />
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${winnerId !== null ? PLAYER_COLORS[winnerId].fill : 'bg-gray-600'}`}>
                 Rejouer
               </button>
@@ -345,6 +361,9 @@ function MorpionLogic() {
       
       {/* CLAVIER RÉDUIT (Uniquement les modificateurs et le bouton rater) */}
       <div className="w-full mb-2 px-1">
+        <div className="mb-3">
+          <UndoThrowButton canUndo={canUndo} onUndo={undo} />
+        </div>
         <div className="flex gap-2 w-full mb-3">
           <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-4 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
           <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-4 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>

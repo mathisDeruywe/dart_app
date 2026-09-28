@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { UndoThrowButton, useThrowUndo } from '../throw-undo';
 
 const PLAYER_COLORS = [
   { text: 'text-indigo-400', fill: 'bg-indigo-500', btn: 'bg-indigo-600 active:bg-indigo-500', border: 'border-indigo-500/30', headBg: 'bg-indigo-900/40' },
@@ -33,6 +34,7 @@ function AllFivesLogic() {
   const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1);
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   const [turnSum, setTurnSum] = useState<number>(0); // Somme exacte des 3 fléchettes
+  const { canUndo, clearUndo, recordUndo, scheduleTransition, undo } = useThrowUndo();
   
   const currentPlayerIndex = currentTurn % numPlayers;
 
@@ -72,6 +74,7 @@ function AllFivesLogic() {
   const winner = players.find(p => p.score >= targetScore) || null;
 
   const resetGame = () => {
+    clearUndo();
     setPlayers(Array.from({ length: numPlayers }, (_, i) => ({
       id: i,
       name: customNames[i] || `Joueur ${i + 1}`,
@@ -92,6 +95,15 @@ function AllFivesLogic() {
       setMultiplier(1);
       return;
     }
+
+    recordUndo(() => {
+      setPlayers(players);
+      setCurrentTurn(currentTurn);
+      setDartsThrown(dartsThrown);
+      setMultiplier(multiplier);
+      setCurrentThrows(currentThrows);
+      setTurnSum(turnSum);
+    });
 
     const points = val * multiplier;
     const newTurnSum = turnSum + points;
@@ -129,7 +141,7 @@ function AllFivesLogic() {
         }
       }
 
-      setTimeout(() => {
+      scheduleTransition(() => {
         if (!didWin) {
           setCurrentTurn(prev => prev + 1);
           setDartsThrown(0);
@@ -163,6 +175,7 @@ function AllFivesLogic() {
             <div className="text-2xl font-bold text-gray-200 mb-8 relative z-10">Score : {winner.score} pts</div>
             
             <div className="flex flex-col gap-4 relative z-10">
+              <UndoThrowButton canUndo={canUndo} onUndo={undo} />
               <button onClick={resetGame} className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg active:scale-95 transition-transform ${PLAYER_COLORS[winner.id % PLAYER_COLORS.length].fill}`}>
                 Rejouer
               </button>
@@ -273,6 +286,9 @@ function AllFivesLogic() {
       
       {/* CLAVIER DE JEU */}
       <div className="w-full mb-2 px-1">
+        <div className="mb-3">
+          <UndoThrowButton canUndo={canUndo} onUndo={undo} />
+        </div>
         <div className="flex gap-2 w-full mb-3">
           <button onClick={() => toggleMultiplier(2)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 2 ? 'bg-orange-500 text-white scale-105 shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Double</button>
           <button onClick={() => toggleMultiplier(3)} className={`flex-1 py-3 rounded-2xl text-lg font-bold transition-all ${multiplier === 3 ? 'bg-red-500 text-white scale-105 shadow-lg shadow-red-900/50' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Triple</button>
