@@ -4,18 +4,17 @@ import { useRouter } from 'next/navigation';
 
 const PREDEFINED_NAMES = ["Mathis", "Rémi", "Maman", "Papa", "Invité"];
 
-// NOUVEAU : On définit précisément les modes de jeu autorisés pour éviter l'erreur "any"
-type GameMode = 'x01' | 'cricket' | 'century' | 'scram' | 'clock' | 'steeplechase' | 'doubledown' | 'allfives' | 'morpion';
+type GameMode = 'x01' | 'cricket' | 'century' | 'scram' | 'clock' | 'steeplechase' | 'doubledown' | 'allfives' | 'morpion' | 'soccer';
 
 export default function Home() {
   const router = useRouter();
   
-  // Utilisation du nouveau type ici
   const [gameMode, setGameMode] = useState<GameMode>('x01');
   const [numPlayers, setNumPlayers] = useState<number>(2);
   const [startingScore, setStartingScore] = useState<number>(501);
   const [clockMode, setClockMode] = useState<'normal' | 'double' | 'triple'>('normal');
   const [allFivesTarget, setAllFivesTarget] = useState<number>(51);
+  const [soccerTarget, setSoccerTarget] = useState<number>(10); // NOUVEAU : Cible Soccer
   const [playerNames, setPlayerNames] = useState<string[]>(['Joueur 1', 'Joueur 2', 'Joueur 3', 'Joueur 4']);
   const [step, setStep] = useState<number>(1);
 
@@ -25,10 +24,8 @@ export default function Home() {
     setPlayerNames(newNames);
   };
 
-  // CORRECTION ICI : On remplace "any" par "GameMode"
   const handleModeSelect = (mode: GameMode) => {
     setGameMode(mode);
-    // Le Morpion se joue obligatoirement à 2 joueurs
     if (mode === 'morpion') {
       setNumPlayers(2);
     }
@@ -48,6 +45,7 @@ export default function Home() {
     else if (gameMode === 'doubledown') router.push(`/doubledown?players=${numPlayers}&names=${activeNames}`);
     else if (gameMode === 'allfives') router.push(`/allfives?players=${numPlayers}&target=${allFivesTarget}&names=${activeNames}`);
     else if (gameMode === 'morpion') router.push(`/morpion?players=2&names=${activeNames}`);
+    else if (gameMode === 'soccer') router.push(`/soccer?players=${numPlayers}&target=${soccerTarget}&names=${activeNames}`);
     else router.push(`/clock?players=${numPlayers}&mode=${clockMode}&names=${activeNames}`);
   };
 
@@ -60,6 +58,7 @@ export default function Home() {
     if (gameMode === 'doubledown') return 'text-pink-500';
     if (gameMode === 'allfives') return 'text-indigo-500';
     if (gameMode === 'morpion') return 'text-red-500';
+    if (gameMode === 'soccer') return 'text-cyan-500';
     return 'text-purple-500';
   };
 
@@ -72,6 +71,7 @@ export default function Home() {
     if (gameMode === 'doubledown') return 'bg-pink-600';
     if (gameMode === 'allfives') return 'bg-indigo-600';
     if (gameMode === 'morpion') return 'bg-red-600';
+    if (gameMode === 'soccer') return 'bg-cyan-600';
     return 'bg-purple-600';
   };
 
@@ -85,13 +85,14 @@ export default function Home() {
     if (gameMode === 'doubledown') return 'bg-pink-600 shadow-lg shadow-pink-900/50 text-white';
     if (gameMode === 'allfives') return 'bg-indigo-600 shadow-lg shadow-indigo-900/50 text-white';
     if (gameMode === 'morpion') return 'bg-red-600 shadow-lg shadow-red-900/50 text-white';
+    if (gameMode === 'soccer') return 'bg-cyan-600 shadow-lg shadow-cyan-900/50 text-white';
     return 'bg-purple-600 shadow-lg shadow-purple-900/50 text-white';
   };
 
   return (
     <main 
       className="flex flex-col items-center justify-center min-h-screen text-white p-4 sm:p-6 select-none overflow-y-auto bg-cover bg-center bg-fixed"
-      style={{ backgroundImage: "url('/fond.jpeg')" }}
+      style={{ backgroundImage: "linear-gradient(rgba(17, 24, 39, 0.85), rgba(17, 24, 39, 0.85)), url('/fond.jpeg')" }}
     >
       <h1 className={`text-5xl font-black mb-6 tracking-tight transition-colors duration-500 ${getTitleColor()}`}>
         Fléchettes
@@ -118,12 +119,13 @@ export default function Home() {
               <button onClick={() => handleModeSelect('steeplechase')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'steeplechase' ? 'bg-yellow-600 text-white scale-105 shadow-lg shadow-yellow-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Course</button>
               <button onClick={() => handleModeSelect('doubledown')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'doubledown' ? 'bg-pink-600 text-white scale-105 shadow-lg shadow-pink-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Double Down</button>
               <button onClick={() => handleModeSelect('allfives')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'allfives' ? 'bg-indigo-600 text-white scale-105 shadow-lg shadow-indigo-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>All Fives</button>
-              <button onClick={() => handleModeSelect('morpion')} className={`col-span-2 py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'morpion' ? 'bg-red-600 text-white scale-105 shadow-lg shadow-red-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Morpion</button>
+              <button onClick={() => handleModeSelect('morpion')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'morpion' ? 'bg-red-600 text-white scale-105 shadow-lg shadow-red-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Morpion</button>
+              <button onClick={() => handleModeSelect('soccer')} className={`py-3 rounded-2xl text-lg font-bold transition-all ${gameMode === 'soccer' ? 'bg-cyan-600 text-white scale-105 shadow-lg shadow-cyan-900/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Soccer (Foot)</button>
             </div>
 
             {/* Options conditionnelles */}
             {gameMode === 'x01' && (
-              <div className="mt-8 animate-in fade-in zoom-in duration-300">
+              <div className="mt-6 animate-in fade-in zoom-in duration-300">
                 <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Score de départ</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {[301, 501, 701, 1001].map(score => (
@@ -134,7 +136,7 @@ export default function Home() {
             )}
 
             {gameMode === 'clock' && (
-              <div className="mt-8 animate-in fade-in zoom-in duration-300">
+              <div className="mt-6 animate-in fade-in zoom-in duration-300">
                 <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Difficulté</h3>
                 <div className="grid grid-cols-3 gap-2">
                   <button onClick={() => setClockMode('normal')} className={`py-3 rounded-xl font-bold transition-all ${clockMode === 'normal' ? 'bg-teal-600 shadow-lg shadow-teal-900/50 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>Normal</button>
@@ -145,11 +147,22 @@ export default function Home() {
             )}
 
             {gameMode === 'allfives' && (
-              <div className="mt-8 animate-in fade-in zoom-in duration-300">
+              <div className="mt-6 animate-in fade-in zoom-in duration-300">
                 <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Score à atteindre</h3>
                 <div className="grid grid-cols-3 gap-2">
                   {[51, 61, 91].map(score => (
                     <button key={score} onClick={() => setAllFivesTarget(score)} className={`py-3 rounded-xl font-bold transition-all ${allFivesTarget === score ? 'bg-indigo-600 shadow-lg shadow-indigo-900/50 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>{score}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {gameMode === 'soccer' && (
+              <div className="mt-6 animate-in fade-in zoom-in duration-300">
+                <h3 className="text-sm uppercase tracking-widest font-bold mb-4 text-gray-400 text-center">Nombre de buts</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {[5, 10, 11].map(score => (
+                    <button key={score} onClick={() => setSoccerTarget(score)} className={`py-3 rounded-xl font-bold transition-all ${soccerTarget === score ? 'bg-cyan-600 shadow-lg shadow-cyan-900/50 text-white' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}>{score}</button>
                   ))}
                 </div>
               </div>
@@ -197,7 +210,7 @@ export default function Home() {
             <div className="flex flex-col gap-4 mb-8">
               {Array.from({ length: numPlayers }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-2 bg-gray-900/30 p-3 rounded-2xl border border-gray-700/50">
-                  <input type="text" value={playerNames[i]} onChange={(e) => handleNameChange(i, e.target.value)} placeholder={gameMode === 'morpion' ? (i === 0 ? 'Joueur X' : 'Joueur O') : `Joueur ${i + 1}`} maxLength={10} className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'morpion' ? 'focus:border-red-500 border-gray-700' : 'focus:border-gray-500 border-gray-700'}`} />
+                  <input type="text" value={playerNames[i]} onChange={(e) => handleNameChange(i, e.target.value)} placeholder={gameMode === 'morpion' ? (i === 0 ? 'Joueur X' : 'Joueur O') : `Joueur ${i + 1}`} maxLength={10} className={`w-full bg-gray-800 text-white px-4 py-3 rounded-xl border-2 transition-colors focus:outline-none ${gameMode === 'morpion' ? 'focus:border-red-500 border-gray-700' : gameMode === 'soccer' ? 'focus:border-cyan-500 border-gray-700' : 'focus:border-blue-500 border-gray-700'}`} />
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                     {PREDEFINED_NAMES.map(name => (
                       <button key={name} onClick={() => handleNameChange(i, name)} className="whitespace-nowrap px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold rounded-lg active:scale-95 transition-all">{name}</button>
